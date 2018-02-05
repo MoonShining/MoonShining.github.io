@@ -81,7 +81,26 @@
   <div class="article-content">
     <div class="entry">
       
-        
+        <p>最近在造一个叫im-go的服务，看名字也能猜出来，是一个基于Go的IM服务，因为不想引入任何的依赖库，所以是手写每个模块的。</p>
+<p>之前看过Netty，于是也想做一个类似Netty Codec的，用于编码解码的模块, 方便地处理TCP粘包这种细节问题。</p>
+<p>在网上做了一番搜索之后，发现排名靠前的实现，要么出乎意料地复杂，要么根本就是完全错误的，例如</p>
+<p>出乎意料的复杂：</p>
+<ul>
+<li><a href="http://xiaorui.cc/2016/03/08/%E8%A7%A3%E5%86%B3golang%E5%BC%80%E5%8F%91socket%E6%9C%8D%E5%8A%A1%E6%97%B6%E7%B2%98%E5%8C%85%E5%8D%8A%E5%8C%85bug" target="_blank" rel="noopener">解决golang开发socket服务时粘包半包bug</a></li>
+<li><a href="golang中tcp socket粘包问题和处理">http://www.01happy.com/golang-tcp-socket-adhere/</a></li>
+</ul>
+<p>错误的：</p>
+<ul>
+<li><a href="服务器的粘包处理">https://victoriest.gitbooks.io/golang-tcp-server/content/chapter4.html</a></li>
+</ul>
+<p>分析一下这个错误的实现</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Decode</span><span class="params">(reader *bufio.Reader)</span> <span class="params">(<span class="keyword">string</span>, error)</span></span> &#123;</span><br><span class="line">    lengthByte, _ := reader.Peek(<span class="number">4</span>)</span><br><span class="line">    lengthBuff := bytes.NewBuffer(lengthByte)</span><br><span class="line">    <span class="keyword">var</span> length <span class="keyword">int32</span></span><br><span class="line">    err := binary.Read(lengthBuff, binary.LittleEndian, &amp;length)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="string">""</span>, err</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">int32</span>(reader.Buffered()) &lt; length+<span class="number">4</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="string">""</span>, err</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 假设执行到了这里，那么已经成功读取了长度到length这个变量中</span></span><br><span class="line">    pack := <span class="built_in">make</span>([]<span class="keyword">byte</span>, <span class="keyword">int</span>(<span class="number">4</span>+length))</span><br><span class="line">    _, err = reader.Read(pack) <span class="comment">//这里是不能保证就能完整个length长度的数据的!!</span></span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="string">""</span>, err</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">string</span>(pack[<span class="number">4</span>:]), <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>我也受了它的误导，基于<a href="https://golang.org/pkg/bufio/#Reader.Peek" target="_blank" rel="noopener">Peek()</a>做了一个非常复杂的实现</p>
+<h3 id="正确的姿势"><a href="#正确的姿势" class="headerlink" title="正确的姿势"></a>正确的姿势</h3><p>在翻了翻io和bufio这两个包之后，我找到了<a href="https://golang.org/pkg/io/#ReadFull" target="_blank" rel="noopener">ReadFull</a></p>
+<p>ReadFull，就是调用了ReadAtLeast</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">ReadFull</span><span class="params">(r Reader, buf []<span class="keyword">byte</span>)</span> <span class="params">(n <span class="keyword">int</span>, err error)</span></span> &#123;</span><br><span class="line">    <span class="keyword">return</span> ReadAtLeast(r, buf, <span class="built_in">len</span>(buf))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">func ReadAtLeast(r Reader, buf []byte, min int) (n int, err error) &#123;</span><br><span class="line">    if len(buf) &lt; min &#123;</span><br><span class="line">        return 0, ErrShortBuffer</span><br><span class="line">    &#125;</span><br><span class="line">    for n &lt; min &amp;&amp; err == nil &#123;</span><br><span class="line">        var nn int</span><br><span class="line">        nn, err = r.Read(buf[n:])</span><br><span class="line">        n += nn</span><br><span class="line">    &#125;</span><br><span class="line">    if n &gt;= min &#123;</span><br><span class="line">        err = nil</span><br><span class="line">    &#125; else if n &gt; 0 &amp;&amp; err == EOF &#123;</span><br><span class="line">        err = ErrUnexpectedEOF</span><br><span class="line">    &#125;</span><br><span class="line">    return</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="Peek"><a href="#Peek" class="headerlink" title="Peek"></a>Peek</h3>
       
     </div>
 
@@ -92,6 +111,13 @@
 
     
 
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/blog/tags/造轮子/">造轮子</a>
+    </span>
     
 
     </div>
