@@ -61,6 +61,60 @@
 
   
     
+    <h3 class="article-title"><a href="/blog/2018/02/05/golang-tcp拆包的正确姿势/"><span>golang tcp拆包的正确姿势</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/blog/2018/02/05/golang-tcp拆包的正确姿势/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-02-05T03:07:59.000Z">
+          2018-02-05
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+
+    </div>
+
+    
+    <div class="article-meta pull-right">
+      <span>
+        <i class="icon-comments"></i>
+        <span>
+          <a href="/blog/2018/02/05/golang-tcp拆包的正确姿势/#comment">Comments</a>
+        </span>
+      </span>
+    </div>
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
     <h3 class="article-title"><a href="/blog/2018/01/05/后端的一些经验与心得/"><span>后端一年(经验与心得)</span></a></h3>
     
   
@@ -962,90 +1016,11 @@
 
 
 
-  <article>
-
-  
-    
-    <h3 class="article-title"><a href="/blog/2016/01/05/一个事件驱动的图片爬虫/"><span>一个事件驱动的图片爬虫</span></a></h3>
-    
-  
-
-  <div class="article-top-meta">
-    <span class="posted-on">
-      <a href="/blog/2016/01/05/一个事件驱动的图片爬虫/" rel="bookmark">
-        <time class="entry-date published" datetime="2016-01-05T01:43:43.000Z">
-          2016-01-05
-        </time>
-      </a>
-    </span>
-  </div>
-
-
-  
-
-  <div class="article-content">
-    <div class="entry">
-      
-        <h4 id="起因"><a href="#起因" class="headerlink" title="起因"></a>起因</h4><ol>
-<li><p>无聊的时候会翻出去看看国外的漫画，然而一页一页加载总是会很慢，偶尔还需要多刷新几次才能显示出来，非常影响体验。于是就写了个脚本去抓某一个漫画下所有的图片，这样跑一遍脚本，就能在本地看图片了。</p>
-</li>
-<li><p>为了偷懒，第一个版本用的单线程模型，几百张图片串行请求，真的慢。</p>
-</li>
-<li><p>实际工作中一直没什么机会用到异步IO，正好拿来练练手。</p>
-</li>
-</ol>
-<h4 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h4><p>并发的下载图片，有多线程和事件驱动两套方案。</p>
-<p>多线程的实现方式，例如一部漫画有300张图，我不可能开300个Thread，系统受不了。比较实际的做法是使用一个容量为N的ThreadPool，那么，同时就只能发出N个请求，然后所有线程Block等待，其实效率也不高</p>
-<p>然而事件驱动的方式就不一样了，我可以一口气把所有请求发出去，当有请求完成时，就调用事先定义的回调Handle，实现了300张图片的并行下载。</p>
-<p>先上图看看效果</p>
-<p><img src="http://upload-images.jianshu.io/upload_images/4073552-b7ed0d072353aa03.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt=""></p>
-<p>从图中就可以看出，所有的请求都发出去之后，才陆续有响应结果乱序到达。这就是典型的异步IO的情景。</p>
-<h4 id="基于EventMachine的异步图片爬虫"><a href="#基于EventMachine的异步图片爬虫" class="headerlink" title="基于EventMachine的异步图片爬虫"></a>基于EventMachine的异步图片爬虫</h4><p>EventMachine是ruby社区知名的事件驱动库，类似于Netty、NodeJS</p>
-<p>通过 EM.run{}就可以开始一个<a href="http://www.ruanyifeng.com/blog/2013/10/event_loop.html" target="_blank" rel="noopener">事件循环</a></p>
-<p>以下是关键代码</p>
-<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#img_info = [&#123;file_name: '1.jpg', url:'xxx'&#125;...]</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">getImg</span><span class="params">(img_info)</span></span></span><br><span class="line">  EM.run&#123; ＃开启事件循环</span><br><span class="line">    multi = EventMachine::MultiRequest.new ＃request容器</span><br><span class="line">    @img_info_copy = img_info.dup</span><br><span class="line">    img_info.each <span class="keyword">do</span> <span class="params">|info|</span></span><br><span class="line">      file_name = File.join(@dir, info[<span class="symbol">:file_name</span>])</span><br><span class="line">      <span class="keyword">if</span> FileTest::exist?(file_name)</span><br><span class="line">        @img_info_copy.delete(info)</span><br><span class="line">        puts <span class="string">"<span class="subst">#&#123;file_name&#125;</span> skip"</span>.blue</span><br><span class="line">        <span class="keyword">next</span></span><br><span class="line">      <span class="keyword">end</span></span><br><span class="line">      puts <span class="string">"<span class="subst">#&#123;file_name&#125;</span> start"</span>.green</span><br><span class="line">      req = EventMachine::HttpRequest.new(info[<span class="symbol">:url</span>]).get ＃创建request</span><br><span class="line">      multi.add <span class="string">"<span class="subst">#&#123;file_name&#125;</span>"</span>,req</span><br><span class="line">      req.callback &#123; ＃成功回调</span><br><span class="line">        File.open(file_name, <span class="string">'w'</span>) &#123; <span class="params">|file|</span> file.write(req.response) &#125;</span><br><span class="line">        @img_info_copy.delete(info)</span><br><span class="line">        puts <span class="string">"<span class="subst">#&#123;file_name&#125;</span> done"</span>.green</span><br><span class="line">      &#125;</span><br><span class="line">      req.errback &#123; ＃失败回调</span><br><span class="line">        puts <span class="string">"<span class="subst">#&#123;file_name&#125;</span> fail"</span>.red</span><br><span class="line">      &#125;</span><br><span class="line">    <span class="keyword">end</span></span><br><span class="line">    multi.callback <span class="keyword">do</span> ＃所有request都完成后的回调</span><br><span class="line">      <span class="keyword">if</span> @img_info_copy.size == <span class="number">0</span> ＃如果没有图片下载失败</span><br><span class="line">        EM.stop</span><br><span class="line">      <span class="keyword">else</span> ＃递归调用，重新下载的图片</span><br><span class="line">        puts <span class="string">"Total fails: <span class="subst">#&#123;@img_info_copy.size&#125;</span>, solving..."</span>.red</span><br><span class="line">        getImg @img_info_copy.dup</span><br><span class="line">      <span class="keyword">end</span></span><br><span class="line">    <span class="keyword">end</span></span><br><span class="line">  &#125;</span><br><span class="line"><span class="keyword">end</span></span><br></pre></td></tr></table></figure>
-<h4 id="遇到的小坑"><a href="#遇到的小坑" class="headerlink" title="遇到的小坑"></a>遇到的小坑</h4><figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">EM.run &#123;&#125;之后，主线程就block了，所有写在它后面的代码都不执行</span><br></pre></td></tr></table></figure>
-<h4 id="效果"><a href="#效果" class="headerlink" title="效果"></a>效果</h4><p>通过这次的优化，下载一部两三百页漫画的时间从之前单线程版本的二十多分钟，变成了现在的两分钟左右！</p>
-
-      
-    </div>
-
-  </div>
-
-  <div class="article-footer">
-    <div class="article-meta pull-left">
-
-    
-
-    
-    
-
-    <span class="post-tags">
-      <i class="icon-tags"></i>
-        <a href="/blog/tags/异步IO/">异步IO</a>
-    </span>
-    
-
-    </div>
-
-    
-    <div class="article-meta pull-right">
-      <span>
-        <i class="icon-comments"></i>
-        <span>
-          <a href="/blog/2016/01/05/一个事件驱动的图片爬虫/#comment">Comments</a>
-        </span>
-      </span>
-    </div>
-    
-  </div>
-</article>
-
-
-
 
 <nav class="pagination">
   
+  
+  <a href="/blog/page/2/" class="pagination-next">Next</a>
   
 </nav>
     </main>
