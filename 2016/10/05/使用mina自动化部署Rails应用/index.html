@@ -1,0 +1,149 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>使用mina自动化部署Rails应用 | Moon&#39;s blog | write the code, change the world.</title>
+
+  
+  <meta name="author" content="Moon">
+  
+
+  
+  <meta name="description" content="Ruby\Golang">
+  
+
+  
+  
+  <meta name="keywords" content="自动化部署">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="使用mina自动化部署Rails应用"/>
+
+  <meta property="og:site_name" content="Moon&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/blog/favicon.ico"/>
+  
+
+  <link href="/blog/favicon.ico" rel="icon">
+  <link rel="alternate" href="/blog/atom.xml" title="Moon&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/blog/css/style.css" media="screen" type="text/css">
+</head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/blog/">Moon&#39;s blog</a>
+    </h1>
+    <p class="site-description">write the code, change the world.</p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/blog/">Home</a></li>
+      
+        <li><a href="/blog/archives">Archives</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>使用mina自动化部署Rails应用</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/blog/2016/10/05/使用mina自动化部署Rails应用/" rel="bookmark">
+        <time class="entry-date published" datetime="2016-10-05T01:41:57.000Z">
+          2016-10-05
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p><img src="http://upload-images.jianshu.io/upload_images/4073552-1881d52edbf495e0.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt=""></p>
+<p>为什么需要自动化部署？</p>
+<h4 id="因为我懒啊！！！"><a href="#因为我懒啊！！！" class="headerlink" title="因为我懒啊！！！"></a>因为我懒啊！！！</h4><h4 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h4><p>mina是rails社区中流行的部署方案，允许你用Ruby DSL描述部署过程，mina生成一份脚本在目标服务器上执行。除了Ruby以外，也支持shell脚本，所以可定制性非常高。相比于老牌的Capstrino，mina一次性上传所有脚本到目标服务器执行，效率上会高一些。</p>
+<h4 id="核心步骤与原理"><a href="#核心步骤与原理" class="headerlink" title="核心步骤与原理"></a>核心步骤与原理</h4><p>mina setup生成目标服务器上的文件夹结构</p>
+<p>mina deploy进行部署</p>
+<p>mina会自动从设置好的git仓库拉代码，运行bundle／migration等一系列流程，然后重启服务器</p>
+<h4 id="简单对比"><a href="#简单对比" class="headerlink" title="简单对比"></a>简单对比</h4><p>手动部署</p>
+<ol>
+<li><p>git pull</p>
+</li>
+<li><p>bundle  install</p>
+</li>
+<li><p>rake db：migrate</p>
+</li>
+<li><p>rake assets：precompile</p>
+</li>
+<li><p>restart web server</p>
+</li>
+</ol>
+<p>自动部署</p>
+<ol>
+<li>mina deploy</li>
+</ol>
+<p>一条命令就可以跑完整个发布流程。当然前提是你的deploy task写的天衣无缝，这需要对rails与linux有一定了解才可以做到。</p>
+<h4 id="举个栗子"><a href="#举个栗子" class="headerlink" title="举个栗子"></a>举个栗子</h4><figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">require <span class="string">'mina/bundler'</span></span><br><span class="line"></span><br><span class="line">require <span class="string">'mina/rails'</span></span><br><span class="line"></span><br><span class="line">require <span class="string">'mina/git'</span></span><br><span class="line"></span><br><span class="line">require <span class="string">'mina/rvm'</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">set</span> :domain, <span class="string">'121.42.12.xx'</span> ＃你的服务器地址或域名</span><br><span class="line"></span><br><span class="line"><span class="built_in">set</span> :deploy_to, <span class="string">'/var/www/api'</span> ＃你打算把项目部署在服务器的哪个文件夹</span><br><span class="line"></span><br><span class="line"><span class="built_in">set</span> :repository, <span class="string">'git@github.com:xxx.git'</span> ＃git仓库</span><br><span class="line"></span><br><span class="line"><span class="built_in">set</span> :branch, <span class="string">'master'</span> ＃git分支</span><br><span class="line"></span><br><span class="line"><span class="built_in">set</span> :term_mode, nil  ＃mina的小bug，设为nil可以解决</span><br><span class="line"></span><br><span class="line"><span class="built_in">set</span> :shared_paths, [<span class="string">'config/sidekiq.yml'</span>, <span class="string">'config/database.yml'</span>, <span class="string">'config/secrets.yml'</span>, <span class="string">'log'</span>, <span class="string">'shared'</span>] ＃很关键，这几个文件夹会在多次部署间，通过符号链接的形式共享</span><br><span class="line"></span><br><span class="line"><span class="built_in">set</span> :user, <span class="string">'moon'</span> ＃ssh 用户名</span><br><span class="line"></span><br><span class="line">task :environment <span class="keyword">do</span></span><br><span class="line"></span><br><span class="line">invoke :<span class="string">'rvm:use[ruby-2.1.0-p0@default]'</span> ＃ruby 版本</span><br><span class="line"></span><br><span class="line">end</span><br><span class="line"></span><br><span class="line">task :setup =&gt; :environment <span class="keyword">do</span>  ＃初始化task，创建文件夹结构</span><br><span class="line"></span><br><span class="line">queue! %[mkdir -p <span class="string">"#&#123;deploy_to&#125;/#&#123;shared_path&#125;/log"</span>]</span><br><span class="line"></span><br><span class="line">queue! %[chmod g+rx,u+rwx <span class="string">"#&#123;deploy_to&#125;/#&#123;shared_path&#125;/log"</span>]</span><br><span class="line"></span><br><span class="line">queue! %[mkdir -p <span class="string">"#&#123;deploy_to&#125;/#&#123;shared_path&#125;/config"</span>]</span><br><span class="line"></span><br><span class="line">queue! %[chmod g+rx,u+rwx <span class="string">"#&#123;deploy_to&#125;/#&#123;shared_path&#125;/config"</span>]</span><br><span class="line"></span><br><span class="line">queue! %[mkdir -p <span class="string">"#&#123;deploy_to&#125;/#&#123;shared_path&#125;/shared"</span>]</span><br><span class="line"></span><br><span class="line">queue! %[chmod g+rx,u+rwx <span class="string">"#&#123;deploy_to&#125;/#&#123;shared_path&#125;/shared"</span>]</span><br><span class="line"></span><br><span class="line">queue! %[touch <span class="string">"#&#123;deploy_to&#125;/#&#123;shared_path&#125;/config/database.yml"</span>]</span><br><span class="line"></span><br><span class="line">queue! %[touch <span class="string">"#&#123;deploy_to&#125;/#&#123;shared_path&#125;/config/secrets.yml"</span>]</span><br><span class="line"></span><br><span class="line">queue  %[<span class="built_in">echo</span> <span class="string">"-----&gt; Be sure to edit '#&#123;deploy_to&#125;/#&#123;shared_path&#125;/config/database.yml' and 'secrets.yml'."</span>]</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> repository</span><br><span class="line"></span><br><span class="line">repo_host = repository.split(%r&#123;@|://&#125;).last.split(%r&#123;:|\/&#125;).first</span><br><span class="line"></span><br><span class="line">repo_port = /:([0-9]+)/.match(repository) &amp;&amp; /:([0-9]+)/.match(repository)[1] || <span class="string">'22'</span></span><br><span class="line"></span><br><span class="line">queue %[</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> ! ssh-keygen -H  -F <span class="comment">#&#123;repo_host&#125; &amp;&gt;/dev/null; then</span></span><br><span class="line"></span><br><span class="line">ssh-keyscan -t rsa -p <span class="comment">#&#123;repo_port&#125; -H #&#123;repo_host&#125; &gt;&gt; ~/.ssh/known_hosts</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">fi</span></span><br><span class="line"></span><br><span class="line">]</span><br><span class="line"></span><br><span class="line">end</span><br><span class="line"></span><br><span class="line">end</span><br><span class="line"></span><br><span class="line">desc <span class="string">"Deploys the current version to the server."</span></span><br><span class="line"></span><br><span class="line">task :deploy =&gt; :environment <span class="keyword">do</span></span><br><span class="line"></span><br><span class="line">to :before_hook <span class="keyword">do</span></span><br><span class="line"></span><br><span class="line">end</span><br><span class="line"></span><br><span class="line">deploy <span class="keyword">do</span> ＃部署流程</span><br><span class="line"></span><br><span class="line">invoke :<span class="string">'git:clone'</span></span><br><span class="line"></span><br><span class="line">invoke :<span class="string">'deploy:link_shared_paths'</span></span><br><span class="line"></span><br><span class="line">invoke :<span class="string">'bundle:install'</span></span><br><span class="line"></span><br><span class="line">invoke :<span class="string">'rails:db_migrate'</span></span><br><span class="line"></span><br><span class="line"><span class="comment">#invoke :'rails:assets_precompile'</span></span><br><span class="line"></span><br><span class="line">invoke :<span class="string">'deploy:cleanup'</span></span><br><span class="line"></span><br><span class="line">invoke :start</span><br><span class="line"></span><br><span class="line">to :launch <span class="keyword">do</span></span><br><span class="line"></span><br><span class="line">queue <span class="string">"mkdir -p #&#123;deploy_to&#125;/#&#123;current_path&#125;/tmp/"</span></span><br><span class="line"></span><br><span class="line">queue <span class="string">"touch #&#123;deploy_to&#125;/#&#123;current_path&#125;/tmp/restart.txt"</span></span><br><span class="line"></span><br><span class="line">end</span><br><span class="line"></span><br><span class="line">end</span><br><span class="line"></span><br><span class="line">end</span><br><span class="line"></span><br><span class="line">desc <span class="string">"start puma &amp; sidekiq"</span></span><br><span class="line"></span><br><span class="line">task :start =&gt; :environment <span class="keyword">do</span></span><br><span class="line"></span><br><span class="line">queue <span class="string">"cd #&#123;deploy_to+"</span>/current<span class="string">"&#125;"</span></span><br><span class="line"></span><br><span class="line">queue <span class="string">"sidekiq -e production -d"</span></span><br><span class="line"></span><br><span class="line">queue <span class="string">"puma -e production"</span></span><br><span class="line"></span><br><span class="line">end</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/blog/tags/自动化部署/">自动化部署</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+  </p>
+</footer>
+    
+  </div>
+</div>
+</body>
+</html>
