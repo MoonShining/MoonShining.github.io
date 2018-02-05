@@ -1,0 +1,977 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>Moon&#39;s blog | write the code, change the world.</title>
+
+  
+  <meta name="author" content="Moon">
+  
+
+  
+  <meta name="description" content="Ruby\Golang">
+  
+
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  
+
+  <meta property="og:site_name" content="Moon&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="Moon&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+</head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">Moon&#39;s blog</a>
+    </h1>
+    <p class="site-description">write the code, change the world.</p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">Home</a></li>
+      
+        <li><a href="/archives">Archives</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    
+  <article>
+
+  
+    
+    <h3 class="article-title"><a href="/2018/02/05/后端的一些经验与心得/"><span>后端一年(经验与心得)</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/02/05/后端的一些经验与心得/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-02-05T01:54:10.000Z">
+          2018-02-05
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>先简单介绍一下我的经历，最早在学校的时候，是在社团里写php和Java，创业时期写js，oc和Ruby，现在是全职用Rails写后端了。</p>
+<h4 id="项目简介"><a href="#项目简介" class="headerlink" title="项目简介"></a>项目简介</h4><p>我们的主要业务有两块，社区和电商</p>
+<p>整体业务的峰值qps大概在3000，也算是pv过10亿的站点了，后端team有4个人，除了一个八年老司机，其他人参加工作的年限都不是太久。</p>
+<p>我们面对的是一个巨大的基于Rails的历史遗留系统，最早的开发成员均已离开，导致我们常常面对遗留代码一脸蒙逼，到处是没有人知道的逻辑，丑陋的实现，以及很多性能跟不上的接口。</p>
+<h4 id="与巨石应用的斗争"><a href="#与巨石应用的斗争" class="headerlink" title="与巨石应用的斗争"></a>与巨石应用的斗争</h4><p>日常工作的重中之重，就是与这个monolith的战斗！</p>
+<p><strong>性能篇</strong></p>
+<p>以往每年我们搞活动，服务器都会挂，经济损失不少，所以优化性能，保证活动期间的访问是第一要务。</p>
+<p>原来的活动整体设计还是比较科学的，活动页面本身是静态化的，主要瓶颈是商品详情页面。</p>
+<p>我们利用redis做了三层cache，解决了这个问题。第一层是数据库的缓存，直接把商品信息缓存到redis里，避免了频繁的数据库访问，第二层是单条数据的渲染缓存，可以理解成一小段html，第三层是整个数据集的渲染缓存。</p>
+<p>第二个瓶颈出现在一些静态资源上，全面迁移到云存储解决。做完这两件事之后，上上次活动是我们有史以来第一次，没有挂。</p>
+<p>就在我们觉得，优化做的不错的时候，上次活动却又挂了。</p>
+<p>要知道我们特意买了新服务器，美滋滋觉得这下稳了，没想到…</p>
+<p>上次活动挂的原因有以下几点</p>
+<ol>
+<li>redis hmget，我们通过gem提供的API，缓存了一个巨大的省市区列表，但是没有注意到缓存是分离的，获取整个列表，其实就是一条hmget获取所有独立的缓存片段，这个操作block了redis，导致访问极度缓慢。我们紧急把整个列表转成json，直接贴到代码里返回hotfix了这个问题</li>
+<li>突然无法通过redis sential进行连接，这套sential系统是由已经离职的运维搭建的，我们绕开sential直接连接redis，解决了这个问题</li>
+<li>fd limit,发现依然是1024，修改后却依然时常502，发现运维修改的是root用户的fd数量…坑爹！</li>
+<li>在支付回调中有一段用于统计的sql，订单量大了以后slow query，block了数据库，我们直接注释了这段可有可无的老代码，解决。</li>
+</ol>
+<p>总结一下，对于web应用的场景来说，大都是读多写少，缓存读请求，异步写请求，是我们经常采用的两种效果不错的方式。在数据库层面，对于遗留代码中效率低下的查询进行重写，重点改写了所有N＋1查询，对一些逐条插入的语句用batch insert合并写入操作，也有不错的提升。</p>
+<p><strong>替换篇</strong></p>
+<p>做的比较有意思的事，是写了我们内部用的个推GEM。原来使用的是github上开源的一个GEM，但是已经很久没更新了，无法适应我们的使用需求。我基于个推最新的HTTPS的API，写了一个Ruby的包装。</p>
+<p>这里要吐槽的是个推的技术水平。推送服务是做的不错，但API怎么做的这么low。他们定义了一个叫authorize的http header用来传递身份信息…违背了RFC关于HTTP头必须大写开头的规范。一些语言的标准库(Go、Ruby…)会自动帮你把authorize转化成Authorize，导致个推那边一直返回auth error…而个推的接口又是HTTPS的，抓包调试很困难，浪费了我很长时间调试这个问题。</p>
+<p><strong>重构篇</strong><br>重构的主要方针就是拆分，尽可能把功能从巨石应用中拆出去。如果一时半会难以拆分的，代码上也尽可能让逻辑高度内聚，方便以后迁移。</p>
+<p>消息系统的重构<br>消息系统是一个，出点问题没什么，但做得好会非常出彩的功能。我一直觉得，像知乎这种社区的成功，除了内容，很大一部分要归功于消息的体验。目前，我们几乎所有页面，都会展示新消息的数量，导致每次请求都会去主数据库的消息表做count，计算各种消息的数量返回给前端。我正在着手把整个系统迁移到另一个独立的数据库，以后可以作为单独的服务供内部调用，降级限流什么的都很方便。</p>
+<p>搜索的重构</p>
+<p>原来的搜索是基于Solr的java工程，是一个我们内部没人维护好多年的烂摊子，虽然各方面表现都不错。我们使用了用Elasticsearch替换掉了。</p>
+<p><strong>新系统</strong><br>我新写了内部的财务系统，过程中遇到很多问题，写的也很痛苦，但最终效果还是不错。因为原来的各种报表都是直接基于生产数据库的，对业务会有冲击，新系统写了一个同步模块，可以增量同步订单数据到财务系统的专用数据库，这样就不会对业务带来影响。</p>
+<p>遇到的比较大的坑就是内存爆炸。有一些耗时计算我放到了消息对列里，整个worker进程的内存占用疯狂上升。最终发现是Ruby内存模型的特点，分配大量对象，却不进行回收。需要你使用batch处理的方式，切成一小块一小块的数据，一次处理一小块，这样下次计算的时候就可以重用之前申请的那些对象。</p>
+<p>另外也通过时间换空间的方式，把加载全部数据做计算，改成了加载部分数据做计算，然后汇总结果这样的方式，极大降低了内存占用，并每天重启worker进程，解决了最主要的内存问题(1G内存的机器…)。</p>
+<p>这个项目让我真实感觉到，有些场景真的不是Ruby擅长的领域。Ruby的内存模型，就是尽量分配对象，从不真正回收，只会重用。Ruby VM启动就有大量空对象等着被分配，假如我加载了很多数据，空对象不够用了，VM就向操作系统申请一批内存，用完后也不释放，等着下次重用。而报表计算的最佳场景就是能加载大量数据，算一下结果，算完释放掉内存。</p>
+<p><strong>监控</strong><br>可以看我之前的文章<a href="http://www.jianshu.com/p/69ce51cfcb3d" target="_blank" rel="noopener">使用ELK构建分布式日志分析系统</a></p>
+<p><strong>代码篇</strong><br>在日常编码、重构的过程中，经常使用的技术是</p>
+<ol>
+<li>设计模式</li>
+<li>元编程</li>
+<li>自动化测试</li>
+</ol>
+<p>运用设计模式，写出符合OOP规范的代码。分割每个类的职责，尽量让各个功能的逻辑内聚，只提供彼此间调用的接口，这是我最近才刚领悟的代码整洁之道。</p>
+<p>元编程抽象代码，我很早就在使用的奇技淫巧。现在却用的越来越少了，因为它违背了OOP，可维护性比较差，对使用者的水平有很大要求，也容易<strong>坑队友</strong>。</p>
+<p>简单地说，我代码中的if/else越来越少了，类越来越多了，改动起来越来方便了，改动影响的部分越来少了，美滋滋。</p>
+<h4 id="结语"><a href="#结语" class="headerlink" title="结语"></a>结语</h4><p>用一句古老的名言，软件开发没有银弹。</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
+    <h3 class="article-title"><a href="/2018/02/05/使用ELK构建分布式日志分析系统/"><span>使用ELK构建分布式日志分析系统</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/02/05/使用ELK构建分布式日志分析系统/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-02-05T01:51:39.000Z">
+          2018-02-05
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p><a href="https://juejin.im/entry/596f38526fb9a06bbb32e759/detail" target="_blank" rel="noopener"><img src="https://badge.juejin.im/entry/596f38526fb9a06bbb32e759/likes.svg?style=plastic" alt=""></a></p>
+<p>分布式系统的日志散落在各个服务器上，对于监控和排错非常不利，我们基于ELK构建了整套日志收集，分析，展示系统。</p>
+<h4 id="架构图"><a href="#架构图" class="headerlink" title="架构图"></a>架构图</h4><p><img src="http://upload-images.jianshu.io/upload_images/4073552-2ea1c542bb9d7c12.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt=""></p>
+<h3 id="主要思路"><a href="#主要思路" class="headerlink" title="主要思路"></a>主要思路</h3><h4 id="1-整理Rails日志"><a href="#1-整理Rails日志" class="headerlink" title="1.整理Rails日志"></a>1.整理Rails日志</h4><p>我们最关心的是Rails的访问日志，但是Rails日志本身的格式是有问题的，举个例子</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Started GET &quot;/&quot; for 10.1.1.11 at 2017-07-19 17:21:43 +0800</span><br><span class="line">Cannot render console from 10.1.1.11! Allowed networks: 127.0.0.1, ::1, 127.0.0.0/127.255.255.255</span><br><span class="line">Processing by Rails::WelcomeController#index as HTML</span><br><span class="line">  Rendering /home/vagrant/.rvm/gems/ruby-2.4.0@community-2.4/gems/railties-5.1.2/lib/rails/templates/rails/welcome/index.html.erb</span><br><span class="line">  Rendered /home/vagrant/.rvm/gems/ruby-2.4.0@community-2.4/gems/railties-5.1.2/lib/rails/templates/rails/welcome/index.html.erb (2.5ms) Completed 200 OK in 184ms (Views: 10.9ms)</span><br></pre></td></tr></table></figure>
+<p>可以看到，一次请求的日志散落在多行中，而且在并发情况下，不同请求的日志会交织在一起，针对这个问题，我们使用<a href="https://github.com/shadabahmed/logstasher" target="_blank" rel="noopener">logstasher</a>重新生成一份JSON格式的日志</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">&#123;&quot;identifier&quot;:&quot;/home/vagrant/.rvm/gems/ruby-2.4.0@community-2.4/gems/railties-5.1.2/lib/rails/templates/rails/welcome/index.html.erb&quot;,&quot;layout&quot;:null,&quot;name&quot;:&quot;render_template.action_view&quot;,&quot;transaction_id&quot;:&quot;35c707dd9d4cd1a79f37&quot;,&quot;duration&quot;:2.34,&quot;request_id&quot;:&quot;bc291df8-8681-47d3-8e10-bd5d93a021a0&quot;,&quot;source&quot;:&quot;unknown&quot;,&quot;tags&quot;:[],&quot;@timestamp&quot;:&quot;2017-07-19T09:29:05.969Z&quot;,&quot;@version&quot;:&quot;1&quot;&#125;</span><br><span class="line">&#123;&quot;method&quot;:&quot;GET&quot;,&quot;path&quot;:&quot;/&quot;,&quot;format&quot;:&quot;html&quot;,&quot;controller&quot;:&quot;rails/welcome&quot;,&quot;action&quot;:&quot;index&quot;,&quot;status&quot;:200,&quot;duration&quot;:146.71,&quot;view&quot;:5.5,&quot;ip&quot;:&quot;10.1.1.11&quot;,&quot;route&quot;:&quot;rails/welcome#index&quot;,&quot;request_id&quot;:&quot;bc291df8-8681-47d3-8e10-bd5d93a021a0&quot;,&quot;source&quot;:&quot;unknown&quot;,&quot;tags&quot;:[&quot;request&quot;],&quot;@timestamp&quot;:&quot;2017-07-19T09:29:05.970Z&quot;,&quot;@version&quot;:&quot;1&quot;&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="2-使用Logstash收集日志"><a href="#2-使用Logstash收集日志" class="headerlink" title="2.使用Logstash收集日志"></a>2.使用Logstash收集日志</h4><p>Logstash通过一份配置文件描述了数据从哪里来，经过怎样的处理流程，输出到何处这整套流程，分别对应于input,filter,output三个概念。</p>
+<p>我们先使用简单的配置来验证一下正确性<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">input &#123;</span><br><span class="line">  file &#123;</span><br><span class="line">    path =&gt; &quot;/home/vagrant/blog/log/logstash_development.log&quot;</span><br><span class="line">      start_position =&gt; beginning</span><br><span class="line">      ignore_older =&gt; 0</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line">output &#123;</span><br><span class="line">        stdout &#123;&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>在这份配置中，我们从上一步生成的日志文件中读取，并输出到stdout中，结果如下</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">2017-07-19T09:59:01.520Z precise64 &#123;&quot;method&quot;:&quot;GET&quot;,&quot;path&quot;:&quot;/&quot;,&quot;format&quot;:&quot;html&quot;,&quot;controller&quot;:&quot;rails/welcome&quot;,&quot;action&quot;:&quot;index&quot;,&quot;status&quot;:200,&quot;duration&quot;:4.85,&quot;view&quot;:3.28,&quot;ip&quot;:&quot;10.1.1.11&quot;,&quot;route&quot;:&quot;rails/welcome#index&quot;,&quot;request_id&quot;:&quot;27b8e5a5-dd1d-4957-9c91-435347d50888&quot;,&quot;source&quot;:&quot;unknown&quot;,&quot;tags&quot;:[&quot;request&quot;],&quot;@timestamp&quot;:&quot;2017-07-19T09:59:01.030Z&quot;,&quot;@version&quot;:&quot;1&quot;&#125;</span><br></pre></td></tr></table></figure>
+<p>然后，修改Logstash的配置文件，将output改为Elasticsearch</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">input &#123;</span><br><span class="line">  file &#123;</span><br><span class="line">    path =&gt; &quot;/vagrant/blog/log/logstash_development.log&quot;</span><br><span class="line">      start_position =&gt; beginning</span><br><span class="line">      ignore_older =&gt; 0</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">output &#123;</span><br><span class="line">  elasticsearch &#123;</span><br><span class="line">    hosts =&gt; [ &quot;localhost:9200&quot; ]</span><br><span class="line">    user =&gt; &apos;xxx&apos;</span><br><span class="line">    password =&gt; &apos;xxx&apos;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>可以看到，整个配置文件的可读性是非常高的，input中描述了输入源是我们整理好的日志文件，输出到Elasticsearch中。</p>
+<p>然后就可以使用Kibanana来进行日志分析的工作了。</p>
+<h4 id="3-Kibana的一些实践"><a href="#3-Kibana的一些实践" class="headerlink" title="3. Kibana的一些实践"></a>3. Kibana的一些实践</h4><p>基于Kibana，我们可以定制Elasticsearch的搜索，来查询一些非常有价值的数据</p>
+<ul>
+<li>查询某个接口的请求情况</li>
+<li>查询耗时在500ms以上的超慢接口</li>
+<li>查询线上报500的接口</li>
+<li>统计高频接口<br>……</li>
+</ul>
+<h4 id="4-Future"><a href="#4-Future" class="headerlink" title="4.Future"></a>4.Future</h4><p>有了ELK提供的数据，我们已经可以比较方便的完成分布式情况下的错误排查，高频接口统计，为下一步的优化提供了指导。我们不必再根据业务逻辑去猜测哪些才是20%的热点，而是有了实实在在的数据支撑。</p>
+<h4 id="5-问题"><a href="#5-问题" class="headerlink" title="5. 问题"></a>5. 问题</h4><p>当然，在使用过程中也遇到过一些问题。在活动期间，访问量暴增的情况下，Elasticsearch吃了很多内存，直接拖垮了两台机器。我们通过临时关闭几台web server上的logstash暂时解决了这个问题。后续还需要对JVM进行一些调优。</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/后端/">后端</a><a href="/tags/ELK/">ELK</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
+    <h3 class="article-title"><a href="/2018/02/05/一次完整的HTTP请求/"><span>一次完整的HTTP请求</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/02/05/一次完整的HTTP请求/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-02-05T01:51:06.000Z">
+          2018-02-05
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>这里讲的请求是后端DevOps可以控制的范围内，不包括DNS解析，层层的路由等等，一切都从请求到达我们自己架设的服务器开始。</p>
+<h4 id="1-与服务器建立连接"><a href="#1-与服务器建立连接" class="headerlink" title="1.与服务器建立连接"></a>1.与服务器建立连接</h4><h5 id="1-1-TCP连接的建立"><a href="#1-1-TCP连接的建立" class="headerlink" title="1.1 TCP连接的建立"></a>1.1 TCP连接的建立</h5><p>客户端的请求到达服务器，首先就是建立TCP连接</p>
+<p><img src="http://upload-images.jianshu.io/upload_images/4073552-575bd444f46a3a26.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt=""></p>
+<ol>
+<li><p>Client首先发送一个连接试探，ACK=0 表示确认号无效，SYN = 1 表示这是一个连接请求或连接接受报文，同时表示这个数据报不能携带数据，seq = x 表示Client自己的初始序号（seq = 0 就代表这是第0号包），这时候Client进入syn_sent状态，表示客户端等待服务器的回复</p>
+</li>
+<li><p>Server监听到连接请求报文后，如同意建立连接，则向Client发送确认。TCP报文首部中的SYN 和 ACK都置1 ，ack = x + 1表示期望收到对方下一个报文段的第一个数据字节序号是x+1，同时表明x为止的所有数据都已正确收到（ack=1其实是ack=0+1,也就是期望客户端的第1个包），seq = y 表示Server 自己的初始序号（seq=0就代表这是服务器这边发出的第0号包）。这时服务器进入syn_rcvd，表示服务器已经收到Client的连接请求，等待client的确认。</p>
+</li>
+<li><p>Client收到确认后还需再次发送确认，同时携带要发送给Server的数据。ACK 置1 表示确认号ack= y + 1 有效（代表期望收到服务器的第1个包），Client自己的序号seq= x + 1（表示这就是我的第1个包，相对于第0个包来说的），一旦收到Client的确认之后，这个TCP连接就进入Established状态，就可以发起http请求了。</p>
+</li>
+</ol>
+<p><strong>1.2 常见TCP连接限制</strong></p>
+<p>1.2.1 <strong>修改用户进程可打开文件数限制</strong></p>
+<p>在Linux平台上，无论编写客户端程序还是服务端程序，在进行高并发TCP连接处理时，最高的并发数量都要受到系统对用户单一进程同时可打开文件数量的限制(这是因为系统为每个TCP连接都要创建一个socket句柄，每个socket句柄同时也是一个文件句柄)。可使用ulimit命令查看系统允许当前用户进程打开的文件数限制，windows上是256，linux是1024，这个博客的服务器是65535</p>
+<p>1.2.2 <strong>修改网络内核对TCP连接的有关限制</strong></p>
+<p>在Linux上编写支持高并发TCP连接的客户端通讯处理程序时，有时会发现尽管已经解除了系统对用户同时打开文件数的限制，但仍会出现并发TCP连接数增加到一定数量时，再也无法成功建立新的TCP连接的现象。出现这种现在的原因有多种。<br>第一种原因可能是因为Linux网络内核对本地端口号范围有限制。此时，进一步分析为什么无法建立TCP连接，会发现问题出在connect()调用返回失败，查看系统错误提示消息是“Can’t assign requestedaddress”。同时，如果在此时用tcpdump工具监视网络，会发现根本没有TCP连接时客户端发SYN包的网络流量。这些情况说明问题在于本地Linux系统内核中有限制。</p>
+<p>其实，问题的根本原因在于Linux内核的TCP/IP协议实现模块对系统中所有的客户端TCP连接对应的本地端口号的范围进行了限制(例如，内核限制本地端口号的范围为1024~32768之间)。当系统中某一时刻同时存在太多的TCP客户端连接时，由于每个TCP客户端连接都要占用一个唯一的本地端口号(此端口号在系统的本地端口号范围限制中)，如果现有的TCP客户端连接已将所有的本地端口号占满，则此时就无法为新的TCP客户端连接分配一个本地端口号了，因此系统会在这种情况下在connect()调用中返回失败，并将错误提示消息设为“Can’t assignrequested address”。</p>
+<h4 id="2-发起HTTP请求"><a href="#2-发起HTTP请求" class="headerlink" title="2.发起HTTP请求"></a>2.发起HTTP请求</h4><p><strong>2.1 请求格式</strong></p>
+<p>例如这样的一个请求<br><img src="http://upload-images.jianshu.io/upload_images/4073552-8758eeb49d3594c5.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt=""></p>
+<p>Accept  就是告诉服务器端，我接受那些MIME类型</p>
+<p>Accept-Encoding  这个看起来是接受那些压缩方式的文件</p>
+<p>Accept-Lanague   告诉服务器能够发送哪些语言 </p>
+<p>Connection       告诉服务器支持keep-alive特性</p>
+<p>Cookie           每次请求时都会携带上Cookie以方便服务器端识别是否是同一个客户端</p>
+<p>Host             用来标识请求服务器上的那个虚拟主机，比如Nginx里面可以定义很多个虚拟主机<br>                 那这里就是用来标识要访问那个虚拟主机。</p>
+<p>User-Agent       用户代理，一般情况是浏览器，也有其他类型，如：wget curl 搜索引擎的蜘蛛等     </p>
+<p>条件请求首部：<br>If-Modified-Since 是浏览器向服务器端询问某个资源文件如果自从什么时间修改过，那么重新发给我，这样就保证服务器端资源<br>             文件更新时，浏览器再次去请求，而不是使用缓存中的文件</p>
+<p>安全请求首部：<br>Authorization: 客户端提供给服务器的认证信息</p>
+<p><strong>2.2 keep-alive/persitent</strong></p>
+<p>每次HTTP请求都重新建立TCP连接的开销是很大的，于是就出现了keep-alive这个首部，它允许在一次TCP连接中发送/接收多个HTTP报文</p>
+<p><img src="http://upload-images.jianshu.io/upload_images/4073552-57dca1ce2c43d5e9.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt=""></p>
+<p>然而，keep-alive是有弊端的。在HTTP1.0中，客户端发起请求是加上keep-alive首部，服务端响应时也加上keep-alive首部，那么这个请求就被认为是keep-alive的，直到其中一方主动断开为止。如果没有正确断开，这个资源就会一直被占用了。</p>
+<p><img src="http://upload-images.jianshu.io/upload_images/4073552-35e40b39b00b6088.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt=""></p>
+<p>哑代理问题：哑代理只是单纯的转发请求，并不能进行解析处理、维持持久连接等其他工作，而聪明的代理可以解析接收到的报文同时可以维持持久连接。</p>
+<pre><code> 如上图，当客户端与服务器之间存在不解析直接转发的代理时，connection：keep-alive这个首部是直接转发给服务器的，服务器接收了这个请求之后，就会向客户端发送带有connection：keep-alive的响应，同样盲代理不会解析响应，直接将全部响应转发回客户端。因为客户端收到了这个首部，就认为建立持久连接已经成功了，但是中间的”笨代理“，并不知道这些事情，笨代理只有一种行为模式：在转发请求和回送服务器响应请求之后就认为这次事务结束了，等待连接断开，而这时由于connection：keep-alive首部已经发送到服务器和客户端，双方都认为持久连接已经建立完成，这样就变成了两边认为持久连接OK而中间的哑代理等待连接断开的情况，这种情况下如果客户端再一次在这条连接上发送请求，请求就会在亚代理处停止，因为哑代理已经在等待连接关闭。这种状态会导致浏览器一直处于挂起状态，直到客户端或服务器之中一个连接超时，关闭连接为止，一段美好的牵手就这么没了（哑代理就是把内容原封不动的转发到代理）。
+
+为了避免这种情况，现代的代理是不会转发connection：keep-alive这个首部的。
+</code></pre><p><strong>persistent</strong></p>
+<p>HTTP/1.1的持久连接默认是开启的，只有首部中包含connection：close，才会事务结束之后关闭连接。当然服务器和客户端仍可以随时关闭持久连接。</p>
+<p>当发送了connection：close首部之后客户端就没有办法在那条连接上发送更多的请求了。当然根据持久连接的特性，一定要传输正确的content-length。</p>
+<p>还有根据HTTP/1.1的特性，是不应该和HTTP/1.0客户端建立持久连接的。最后，一定要做好重发的准备。</p>
+<p><strong>管道化连接</strong></p>
+<p>HTTP/1.1允许在持久连接上使用管道，这样就不用等待前一个请求的响应，直接在管道上发送第二个请求，在高延迟下，提高性能。</p>
+<p>管道化连接的限制：</p>
+<ul>
+<li>不是持久连接就不能使用管道。</li>
+<li>必须按照同样的发送顺序回送响应，因为报文没有标签，很可能就顺序就乱咯。</li>
+<li>因为可以随时关闭持久连接，所以要随时做好重发准备</li>
+<li>不应该使用管道化发送重复发送会有副作用的请求（如post，重复提交）。</li>
+</ul>
+<h4 id="3-负载均衡"><a href="#3-负载均衡" class="headerlink" title="3.负载均衡"></a>3.负载均衡</h4><p>接收到HTTP请求之后，就轮到负载均衡登场了，它位于网站的最前端，把短时间内较高的访问量分摊到不同机器上处理。负载均衡方案有软件、硬件两种</p>
+<p>F5 BIG-IP是著名的硬件方案，但这里不作讨论</p>
+<p>软件方案有LVS HAProxy Nginx等，留作以后补充</p>
+<h4 id="4-Nginx-WEB服务器"><a href="#4-Nginx-WEB服务器" class="headerlink" title="4.Nginx(WEB服务器)"></a>4.Nginx(WEB服务器)</h4><p>在典型的Rails应用部署方案中，Nginx的作用有两个</p>
+<ol>
+<li>处理静态文件请求</li>
+<li>转发请求给后端的Rails应用</li>
+</ol>
+<p>这是一个简单的Nginx配置文件</p>
+<p><img src="http://upload-images.jianshu.io/upload_images/4073552-69807a8f9b06b68b.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt=""></p>
+<p>后端的Rails服务器通过unix socket与Nginx通信，Nginx伺服public文件夹里的静态文件给用户</p>
+<h4 id="5-Rails-应用服务器"><a href="#5-Rails-应用服务器" class="headerlink" title="5.Rails(应用服务器)"></a>5.Rails(应用服务器)</h4><p><a href="http://ohcoder.com/blog/2014/11/11/raptor-part-1/" target="_blank" rel="noopener">这篇文章无敌了</a>，我没有更多可以写的，只能说一句我用的是Puma。因为服务器是单核的，只能用多线程Puma或者事件驱动的Thin，考虑到以后可能用上Rails 5 ActionCabel，还是直接上Puma吧。</p>
+<h4 id="6-数据库-数据库服务器"><a href="#6-数据库-数据库服务器" class="headerlink" title="6.数据库(数据库服务器)"></a>6.数据库(数据库服务器)</h4><p>应用服务器想访问数据库，就需要与数据库建立连接。Rails读取database.yml中的配置，访问对应的数据库。</p>
+<p>一个重要的配置指标<strong>pool</strong>: Rails中的数据库连接是完全线程安全的，所有pool的值要配置成与Puma的最大线程数相等，这样就不会出现线程等待数据库连接的情况。</p>
+<h4 id="7-Redis、Memercache-缓存服务器"><a href="#7-Redis、Memercache-缓存服务器" class="headerlink" title="7.Redis、Memercache(缓存服务器)"></a>7.Redis、Memercache(缓存服务器)</h4><h4 id="8-消息队列"><a href="#8-消息队列" class="headerlink" title="8.消息队列"></a>8.消息队列</h4><h4 id="9-搜索"><a href="#9-搜索" class="headerlink" title="9.搜索"></a>9.搜索</h4><p>###参考文献<br><a href="http://www.linux178.com/web/httprequest.html" target="_blank" rel="noopener">一次完整的HTTP事务是怎样一个过程？</a></p>
+<p><a href="http://blog.sae.sina.com.cn/archives/1988" target="_blank" rel="noopener">Linux下高并发socket最大连接数所受的各种限制</a></p>
+<p><a href="https://www.maxcdn.com/one/visual-glossary/keep-alive/" target="_blank" rel="noopener">Keep-Alive</a></p>
+<p><a href="http://www.cnblogs.com/littlewish/archive/2013/01/17/2865218.html" target="_blank" rel="noopener">谈谈持久连接——HTTP权威指南读书心得（五）</a></p>
+<p><a href="http://www.uml.org.cn/sjjm/201004153.asp" target="_blank" rel="noopener">数据库连接池的工作原理 </a></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/后端/">后端</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
+    <h3 class="article-title"><a href="/2018/02/05/关于Netty的一些理解、实践与陷阱/"><span>关于Netty的一些理解、实践与陷阱</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/02/05/关于Netty的一些理解、实践与陷阱/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-02-05T01:49:00.000Z">
+          2018-02-05
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h3 id="核心概念的理解"><a href="#核心概念的理解" class="headerlink" title="核心概念的理解"></a>核心概念的理解</h3><p>Netty对于网络层进行了自己的抽象，用Channel表示连接，读写就是Channel上发生的事件，ChannelHandler用来处理这些事件，ChannelPipeline基于unix哲学提供了一种优雅的组织ChannelHandler的方式，用管道解耦不同层面的处理。现在回过头来看看，真的是非常天才和优雅的设计，是我心中API设计的典范之一了。</p>
+<h3 id="TCP半包、粘包"><a href="#TCP半包、粘包" class="headerlink" title="TCP半包、粘包"></a>TCP半包、粘包</h3><p>使用Netty内置的<strong>LineBasedFrameDecoder</strong>或者<strong>LengthFieldBasedFrameDecoder </strong>,我们只要在pipeline中添加，就解决了这个问题。</p>
+<h3 id="Writtable问题"><a href="#Writtable问题" class="headerlink" title="Writtable问题"></a>Writtable问题</h3><p>有时候，由于TCP的send buffer满了，向channel的写入会失败。我们需要检查<strong>channel().isWritable()</strong>标记来确定是否执行写入。</p>
+<h3 id="处理耗时任务"><a href="#处理耗时任务" class="headerlink" title="处理耗时任务"></a>处理耗时任务</h3><p>Netty In Action以及网上的一些资料中，都没有很直接的展示如何在Netty中去处理耗时任务。其实也很简单，只要给handler指定一个事件循环就可以，例如</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MyChannelInitializer</span> <span class="keyword">extends</span> <span class="title">ChannelInitializer</span>&lt;<span class="title">Channel</span>&gt; </span>&#123;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> EventExecutorGroup longTaskGroup = <span class="keyword">new</span> DefaultEventExecutorGroup(<span class="number">5</span>);</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">initChannel</span><span class="params">(Channel channel)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        ChannelPipeline pipeline = channel.pipeline();</span><br><span class="line">        ...</span><br><span class="line">        pipeline.addLast(longTaskGroup, <span class="keyword">new</span> PrintHandler());</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="Pitfall"><a href="#Pitfall" class="headerlink" title="Pitfall"></a>Pitfall</h3><p>Netty的ChannelPipeline只有一条双向链，消息入站，经过一串InBoundHandler之后，以相反的顺序再经过OutBoundHandler出站.因此，我们自定义的handler一般会处于pipeline的<strong>末尾</strong>!</p>
+<p>举个例子，当以如下顺序添加handler时，如果调用ChannelHandlerContext上的writeAndFlush方法，出站消息是无法经过StringEncoder的<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MyChannelInitializer</span> <span class="keyword">extends</span> <span class="title">ChannelInitializer</span>&lt;<span class="title">Channel</span>&gt; </span>&#123;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> EventExecutorGroup longTaskGroup = <span class="keyword">new</span> DefaultEventExecutorGroup(<span class="number">5</span>);</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">initChannel</span><span class="params">(Channel channel)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        ChannelPipeline pipeline = channel.pipeline();</span><br><span class="line">        pipeline.addLast(<span class="keyword">new</span> LineBasedFrameDecoder(<span class="number">64</span> * <span class="number">1024</span>));</span><br><span class="line">        pipeline.addLast(<span class="keyword">new</span> StringDecoder(CharsetUtil.UTF_8))；</span><br><span class="line">        pipeline.addLast(longTaskGroup, <span class="keyword">new</span> PrintHandler());</span><br><span class="line">        pipeline.addLast(<span class="keyword">new</span> StringEncoder(CharsetUtil.UTF_8));</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>这个问题有两个解决方式</p>
+<ol>
+<li>调整handler的顺序</li>
+<li>调用channel上的writeAndFlush方法，强制使消息在整个pipeline上流动</li>
+</ol>
+<p>调整handler的顺序<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MyChannelInitializer</span> <span class="keyword">extends</span> <span class="title">ChannelInitializer</span>&lt;<span class="title">Channel</span>&gt; </span>&#123;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> EventExecutorGroup longTaskGroup = <span class="keyword">new</span> DefaultEventExecutorGroup(<span class="number">5</span>);</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">initChannel</span><span class="params">(Channel channel)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        ChannelPipeline pipeline = channel.pipeline();</span><br><span class="line">        pipeline.addLast(<span class="keyword">new</span> LineBasedFrameDecoder(<span class="number">64</span> * <span class="number">1024</span>));</span><br><span class="line">        pipeline.addLast(<span class="keyword">new</span> StringDecoder(CharsetUtil.UTF_8));</span><br><span class="line">        pipeline.addLast(<span class="keyword">new</span> StringEncoder(CharsetUtil.UTF_8));</span><br><span class="line">        pipeline.addLast(longTaskGroup, <span class="keyword">new</span> PrintHandler());</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>调用Channel上的writeAndFlush方法</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">PrintHandler</span> <span class="keyword">extends</span> <span class="title">SimpleChannelInboundHandler</span>&lt;<span class="title">String</span>&gt; </span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">channelRead0</span><span class="params">(ChannelHandlerContext ctx, String msg)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line"><span class="comment">//        ctx.writeAndFlush(msg);</span></span><br><span class="line">        ctx.channel().writeAndFlush(msg);</span><br><span class="line">        System.out.println(msg);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h3><p><a href="http://www.voidcn.com/article/p-yhpuvvkx-mm.html" target="_blank" rel="noopener">http://www.voidcn.com/article/p-yhpuvvkx-mm.html</a><br><a href="https://stackoverflow.com/questions/37474482/dealing-with-long-time-task-such-as-sql-query-in-netty" target="_blank" rel="noopener">https://stackoverflow.com/questions/37474482/dealing-with-long-time-task-such-as-sql-query-in-netty</a><br>《Netty In Action》</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/后端/">后端</a><a href="/tags/异步IO/">异步IO</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
+    <h3 class="article-title"><a href="/2018/02/05/MySQL查询优化/"><span>MySQL查询优化</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/02/05/MySQL查询优化/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-02-05T01:47:41.000Z">
+          2018-02-05
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>2017.12.11更新<br><a href="https://www.youtube.com/watch?v=BuDWWadCqIw" target="_blank" rel="noopener">The Secret Life of SQL: How to Optimize Database Performance by Bryana Knight</a></p>
+<h3 id="查询性能低下的原因是访问了太多的数据"><a href="#查询性能低下的原因是访问了太多的数据" class="headerlink" title="查询性能低下的原因是访问了太多的数据"></a>查询性能低下的原因是访问了太多的数据</h3><ul>
+<li>多表连接时返回了所有的列</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">select * from sakila.actor </span><br><span class="line">inner join sakila.file_actor using(actior_id)</span><br><span class="line">inner join sakila.film using(film_id)</span><br><span class="line">where sakila.film.title = &apos;AronMan&apos;</span><br></pre></td></tr></table></figure>
+<font color="red">正确的做法是这样</font>
+
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">select sakila.actor.* from sakila.actor </span><br><span class="line">inner join sakila.file_actor using(actior_id)</span><br><span class="line">inner join sakila.film using(film_id)</span><br><span class="line">where sakila.film.title = &apos;AronMan&apos;</span><br></pre></td></tr></table></figure>
+<ul>
+<li>分解连接技术</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">select * from tag</span><br><span class="line">join tag_post on tag_post.tag_id=tag.id</span><br><span class="line">join post on tag_post.post_id=post.id</span><br><span class="line">where tag.tag=&apos;mysql&apos;</span><br></pre></td></tr></table></figure>
+<p>分解连接之后</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">select * from tag where tag=&apos;mysql&apos;</span><br><span class="line">select * from tag_post where tag_id=1234</span><br><span class="line">select * from post where post.id in(123,456,789)</span><br></pre></td></tr></table></figure>
+<p>分解连接看上去比较浪费，但是有巨大优势</p>
+<ol>
+<li>缓存效率高</li>
+<li>MyISAM引擎下，锁住表的时间短</li>
+<li>在应用程序端连接可以更方便扩展数据库，把表放在不同的数据库服务器上</li>
+<li>查询本身更高效</li>
+<li>减少多余行的访问</li>
+</ol>
+<p><strong>什么时候使用分解连接？</strong></p>
+<ol>
+<li>可以缓存大量查询</li>
+<li>使用了多个MyISAM表</li>
+<li>数据分布在不同服务器</li>
+<li>对于大表使用in替换连接</li>
+<li>一个连接引用了同一个表多次</li>
+</ol>
+<h3 id="优化连接"><a href="#优化连接" class="headerlink" title="优化连接"></a>优化连接</h3><ol>
+<li>确保on或者using的列有索引</li>
+<li>确保group by 或者order by只引用一个列，这样可以使用索引</li>
+</ol>
+<h3 id="悲观锁"><a href="#悲观锁" class="headerlink" title="悲观锁"></a>悲观锁</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">select chairid from seat where booked is null for update</span><br><span class="line">update seat set booked=&apos;x&apos; where chairid=1</span><br><span class="line">commit</span><br></pre></td></tr></table></figure>
+<h2 id="索引及查询优化"><a href="#索引及查询优化" class="headerlink" title="索引及查询优化"></a>索引及查询优化</h2><p>摘取部分自<a href="http://blog.chinaunix.net/uid-11640640-id-3426908.html" target="_blank" rel="noopener">mysql性能优化-慢查询分析、优化索引和配置 </a></p>
+<h3 id="索引的类型"><a href="#索引的类型" class="headerlink" title="索引的类型"></a>索引的类型</h3><p>Ø 普通索引：这是最基本的索引类型，没唯一性之类的限制。</p>
+<p>Ø 唯一性索引：和普通索引基本相同，但所有的索引列值保持唯一性。</p>
+<p>Ø 主键：主键是一种唯一索引，但必须指定为”PRIMARY KEY”。</p>
+<p>Ø 全文索引：MYSQL从3.23.23开始支持全文索引和全文检索。在MYSQL中，全文索引的索引类型为FULLTEXT。全文索引可以在VARCHAR或者TEXT类型的列上创建。</p>
+<p>使用多列索引 要注意最左前缀问题</p>
+<p>有时MySQL不使用索引，即使有可用的索引。一种情形是当优化器估计到使用索引将需要MySQL访问表中的大部分行时。(在这种情况下，表扫描可能会更快些）。然而，如果此类查询使用LIMIT只搜索部分行，MySQL则使用索引，因为它可以更快地找到几行并在结果中返回。</p>
+<h3 id="合理的建立索引的建议："><a href="#合理的建立索引的建议：" class="headerlink" title="合理的建立索引的建议："></a>合理的建立索引的建议：</h3><p>(1)  越小的数据类型通常更好：越小的数据类型通常在磁盘、内存和CPU缓存中都需要更少的空间，处理起来更快。 </p>
+<p>(2)  简单的数据类型更好：整型数据比起字符，处理开销更小，因为字符串的比较更复杂。在MySQL中，应该用内置的日期和时间数据类型，而不是用字符串来存储时间；以及用整型数据类型存储IP地址。</p>
+<p>(3)  尽量避免NULL：应该指定列为NOT NULL，除非你想存储NULL。在MySQL中，含有空值的列很难进行查询优化，因为它们使得索引、索引的统计信息以及比较运算更加复杂。你应该用0、一个特殊的值或者一个空串代替空值</p>
+<h3 id="这部分是关于索引和写SQL语句时应当注意的一些琐碎建议和注意点。"><a href="#这部分是关于索引和写SQL语句时应当注意的一些琐碎建议和注意点。" class="headerlink" title="这部分是关于索引和写SQL语句时应当注意的一些琐碎建议和注意点。"></a>这部分是关于索引和写SQL语句时应当注意的一些琐碎建议和注意点。</h3><ol>
+<li><p>当结果集只有一行数据时使用LIMIT 1</p>
+</li>
+<li><p>避免SELECT *，始终指定你需要的列</p>
+</li>
+</ol>
+<p>从表中读取越多的数据，查询会变得更慢。他增加了磁盘需要操作的时间，还是在数据库服务器与WEB服务器是独立分开的情况下。你将会经历非常漫长的网络延迟，仅仅是因为数据不必要的在服务器之间传输。</p>
+<ol>
+<li><p>使用连接（JOIN）来代替子查询(Sub-Queries)。 连接（JOIN）之所以更有效率一些，是因为MySQL不需要在内存中创建临时表来完成这个逻辑上的需要两个步骤的查询工作。</p>
+</li>
+<li><p>使用ENUM、CHAR 而不是VARCHAR，使用合理的字段属性长度</p>
+</li>
+<li><p>尽可能的使用NOT NULL</p>
+</li>
+<li><p>固定长度的表会更快</p>
+</li>
+<li><p>拆分大的DELETE 或INSERT 语句</p>
+</li>
+<li><p>查询的列越小越快</p>
+</li>
+</ol>
+<h3 id="Where条件"><a href="#Where条件" class="headerlink" title="Where条件"></a>Where条件</h3><p>在查询中，WHERE条件也是一个比较重要的因素，尽量少并且是合理的where条件是很重要的，尽量在多个条件的时候，把会提取尽量少数据量的条件放在前面，减少后一个where条件的查询时间。</p>
+<p>有些where条件会导致索引无效：</p>
+<p>Ø where子句的查询条件里有！=，MySQL将无法使用索引。</p>
+<p>Ø where子句使用了Mysql函数的时候，索引将无效，比如：select * from tb where left(name, 4) = ‘xxx’</p>
+<p>Ø 使用LIKE进行搜索匹配的时候，这样索引是有效的：select * from tbl1 where name like ‘xxx%’，而like ‘%xxx%’ 时索引无效</p>
+<h2 id="技巧整理"><a href="#技巧整理" class="headerlink" title="技巧整理"></a>技巧整理</h2><p>1、应尽量避免在 where 子句中使用!=或&lt;&gt;操作符，否则将引擎放弃使用索引而进行全表扫描。</p>
+<p>2、对查询进行优化，应尽量避免全表扫描，首先应考虑在 where 及 order by 涉及的列上建立索引。</p>
+<p>3、应尽量避免在 where 子句中对字段进行 null 值判断，否则将导致引擎放弃使用索引而进行全表扫描，如：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select id from t where num is null</span><br></pre></td></tr></table></figure>
+<p>可以在num上设置默认值0，确保表中num列没有null值，然后这样查询：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select id from t where num=0</span><br></pre></td></tr></table></figure>
+<p>4、尽量避免在 where 子句中使用 or 来连接条件，否则将导致引擎放弃使用索引而进行全表扫描，如：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select id from t where num=10 or num=20</span><br></pre></td></tr></table></figure>
+<p>可以这样查询：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">select id from t where num=10</span><br><span class="line">union all</span><br><span class="line">select id from t where num=20</span><br></pre></td></tr></table></figure>
+<p>5、下面的查询也将导致全表扫描：(不能前置百分号)</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select id from t where name like &apos;%abc&apos;</span><br></pre></td></tr></table></figure>
+<p>若要提高效率，可以考虑全文检索。</p>
+<p>6、in 和 not in 也要慎用，否则会导致全表扫描，如：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select id from t where num in(1,2,3)</span><br></pre></td></tr></table></figure>
+<p>对于连续的数值，能用 between 就不要用 in 了：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select id from t where num between 1 and 3</span><br></pre></td></tr></table></figure>
+<p>7、如果在 where 子句中使用参数，也会导致全表扫描。因为SQL只有在运行时才会解析局部变量，但优化程序不能将访问计划的选择推迟到运行时；它必须在编译时进行选择。然 而，如果在编译时建立访问计划，变量的值还是未知的，因而无法作为索引选择的输入项。如下面语句将进行全表扫描：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select id from t where num=@num</span><br></pre></td></tr></table></figure>
+<p>可以改为强制查询使用索引：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select id from t with(index(索引名)) where num=@num</span><br></pre></td></tr></table></figure>
+<p>8、应尽量避免在 where 子句中对字段进行表达式操作，这将导致引擎放弃使用索引而进行全表扫描。如：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select id from t where num/2=100</span><br></pre></td></tr></table></figure>
+<p>应改为:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select id from t where num=100*2</span><br></pre></td></tr></table></figure>
+<p>9、应尽量避免在where子句中对字段进行函数操作，这将导致引擎放弃使用索引而进行全表扫描。如：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select id from t where substring(name,1,3)=’abc’</span><br></pre></td></tr></table></figure>
+<p>应改为:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">select id from t where name like ‘abc%’</span><br><span class="line">select id from t where createdate&gt;=’2005-11-30′ and createdate&lt;’2005-12-1′</span><br></pre></td></tr></table></figure>
+<p>10、不要在 where 子句中的“=”左边进行函数、算术运算或其他表达式运算，否则系统将可能无法正确使用索引。</p>
+<p>11、在使用索引字段作为条件时，如果该索引是复合索引，那么必须使用到该索引中的第一个字段作为条件时才能保证系统使用该索引，否则该索引将不会被使 用，并且应尽可能的让字段顺序与索引顺序相一致。</p>
+<p>12、不要写一些没有意义的查询，如需要生成一个空表结构：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select col1,col2 into #t from t where 1=0</span><br></pre></td></tr></table></figure>
+<p>这类代码不会返回任何结果集，但是会消耗系统资源的，应改成这样：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">create table #t(…)</span><br></pre></td></tr></table></figure>
+<p>13、很多时候用 exists 代替 in 是一个好的选择：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select num from a where num in(select num from b)</span><br></pre></td></tr></table></figure>
+<p>用下面的语句替换：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select num from a where exists(select 1 from b where num=a.num)</span><br></pre></td></tr></table></figure>
+<p>14、并不是所有索引对查询都有效，SQL是根据表中数据来进行查询优化的，当索引列有大量数据重复时，SQL查询可能不会去利用索引，如一表中有字段 sex，male、female几乎各一半，那么即使在sex上建了索引也对查询效率起不了作用。</p>
+<p>15、索引并不是越多越好，索引固然可以提高相应的 select 的效率，但同时也降低了 insert 及 update 的效率，因为 insert 或 update 时有可能会重建索引，所以怎样建索引需要慎重考虑，视具体情况而定。一个表的索引数最好不要超过6个，若太多则应考虑一些不常使用到的列上建的索引是否有 必要。</p>
+<p>16.应尽可能的避免更新 clustered 索引数据列，因为 clustered 索引数据列的顺序就是表记录的物理存储顺序，一旦该列值改变将导致整个表记录的顺序的调整，会耗费相当大的资源。若应用系统需要频繁更新 clustered 索引数据列，那么需要考虑是否应将该索引建为 clustered 索引。</p>
+<p>17、尽量使用数字型字段，若只含数值信息的字段尽量不要设计为字符型，这会降低查询和连接的性能，并会增加存储开销。这是因为引擎在处理查询和连接时会 逐个比较字符串中每一个字符，而对于数字型而言只需要比较一次就够了。</p>
+<p>18、尽可能的使用 varchar/nvarchar 代替 char/nchar ，因为首先变长字段存储空间小，可以节省存储空间，其次对于查询来说，在一个相对较小的字段内搜索效率显然要高些。</p>
+<p>19、任何地方都不要使用 select <em> from t ，用具体的字段列表代替“</em>”，不要返回用不到的任何字段。</p>
+<p>20、尽量使用表变量来代替临时表。如果表变量包含大量数据，请注意索引非常有限（只有主键索引）。</p>
+<p>21、避免频繁创建和删除临时表，以减少系统表资源的消耗。</p>
+<p>22、临时表并不是不可使用，适当地使用它们可以使某些例程更有效，例如，当需要重复引用大型表或常用表中的某个数据集时。但是，对于一次性事件，最好使 用导出表。</p>
+<p>23、在新建临时表时，如果一次性插入数据量很大，那么可以使用 select into 代替 create table，避免造成大量 log ，以提高速度；如果数据量不大，为了缓和系统表的资源，应先create table，然后insert。</p>
+<p>24、如果使用到了临时表，在存储过程的最后务必将所有的临时表显式删除，先 truncate table ，然后 drop table ，这样可以避免系统表的较长时间锁定。</p>
+<p>25、尽量避免使用游标，因为游标的效率较差，如果游标操作的数据超过1万行，那么就应该考虑改写。</p>
+<p>26、使用基于游标的方法或临时表方法之前，应先寻找基于集的解决方案来解决问题，基于集的方法通常更有效。</p>
+<p>27、与临时表一样，游标并不是不可使用。对小型数据集使用 FAST_FORWARD 游标通常要优于其他逐行处理方法，尤其是在必须引用几个表才能获得所需的数据时。在结果集中包括“合计”的例程通常要比使用游标执行的速度快。如果开发时 间允许，基于游标的方法和基于集的方法都可以尝试一下，看哪一种方法的效果更好。</p>
+<p>28、在所有的存储过程和触发器的开始处设置 SET NOCOUNT ON ，在结束时设置 SET NOCOUNT OFF 。无需在执行存储过程和触发器的每个语句后向客户端发送 DONE_IN_PROC 消息。</p>
+<p>29、尽量避免向客户端返回大数据量，若数据量过大，应该考虑相应需求是否合理。</p>
+<p>30、尽量避免大事务操作，提高系统并发能力。</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/后端/">后端</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
+    <h3 class="article-title"><a href="/2018/02/05/https理论与实践/"><span>https理论与实践</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/02/05/https理论与实践/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-02-05T01:46:06.000Z">
+          2018-02-05
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>说点废话，我一直觉得APPLE是个非常激进的公司， 从早些的Flash，到现在的http，又比如新的Mac连USB口都不给。公司大到这个量级，已经可以凭一己之力促进先进技术的普及了。</p>
+<h4 id="本文内容分为以下三部分"><a href="#本文内容分为以下三部分" class="headerlink" title="本文内容分为以下三部分"></a>本文内容分为以下三部分</h4><ul>
+<li>HTTPS协议</li>
+<li>使用Let’s Encrypt在后端部署https服务</li>
+<li>https在iOS上的正确使用姿势</li>
+</ul>
+<h4 id="Part1-HTTPS协议"><a href="#Part1-HTTPS协议" class="headerlink" title="Part1 HTTPS协议"></a>Part1 HTTPS协议</h4><p>普通的HTTP请求，在通信双方建立了TCP连接之后，就可以进行了。而HTTPS则不同，在建立TCP连接之后，需要先进行SSL协议的握手过程，然后才是HTTP的通信。</p>
+<p>SSL的握手过程如下图所示<br><img src="http://upload-images.jianshu.io/upload_images/4073552-0d43756862bec209.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt=""></p>
+<p>alice想要与bob进行https的通信，需要以下几步</p>
+<ol>
+<li>alice给出协议版本号、一个客户端生成的随机数（Client random），以及客户端支持的加密方法。</li>
+<li>bob确认双方使用的加密方法，并给出数字证书（包含bob的公钥）、以及一个服务器生成的随机数（Server random）。</li>
+<li>alice 确认数字证书（向CA确认）有效，然后生成一个新的随机数（Premaster secret），并使用数字证书中的公钥，加密这个随机数，发给鲍勃。</li>
+<li>bob使用自己的私钥，获取爱丽丝发来的随机数（即Premaster secret）。</li>
+<li>alice和bob根据约定的加密方法，使用前面的三个随机数，生成”对话密钥”（session key），用来加密接下来的整个对话过程。</li>
+</ol>
+<p>上述步骤的最终目的，是为了生成”对话密钥“，以后的通信都使用这个密钥进行对称加密（一般对称加解密的速度是比较快的）</p>
+<p>那么看到这里，就又一个问题出现了。握手阶段的信息安全如何保障？</p>
+<p>答案是无法保障。整个握手阶段，都是明文的。因此如果有第三方窃听了通信，他可以获得Client random、Server random以及加密后的Premaster secret。只要第三方无法破解Premaster secret的内容，那么通信就是安全的。</p>
+<h4 id="Part2-使用Let’s-Encrypt在后端部署https服务"><a href="#Part2-使用Let’s-Encrypt在后端部署https服务" class="headerlink" title="Part2 使用Let’s Encrypt在后端部署https服务"></a>Part2 使用Let’s Encrypt在后端部署https服务</h4><p>可以参考这篇文章</p>
+<p><a href="https://www.digitalocean.com/community/tutorials/how-to-secure-nginx-with-let-s-encrypt-on-ubuntu-16-04" target="_blank" rel="noopener">How To Secure Nginx with Let’s Encrypt on Ubuntu 16.04</a></p>
+<p>大致步骤</p>
+<ol>
+<li>安装certbot客户端</li>
+<li>配置服务器允许方案 /.well-known文件夹</li>
+<li>sudo letsencrypt certonly -a webroot –webroot-path=/var/www/html -d example.com -d www.example.com 这个命令会生成你需要的证书等文件</li>
+<li>配置Nginx ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem;<br>ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;</li>
+</ol>
+<p>如果速度很慢多半是python的源被墙了，需要改一下pip配置。</p>
+<p>Let’s Encrypt大法好，退沃通保平安！</p>
+<h4 id="Part3-在iOS上使用自己颁发的HTTPS证书的正确姿势"><a href="#Part3-在iOS上使用自己颁发的HTTPS证书的正确姿势" class="headerlink" title="Part3 在iOS上使用自己颁发的HTTPS证书的正确姿势"></a>Part3 在iOS上使用自己颁发的HTTPS证书的正确姿势</h4><p>在开发环境，也需要进行HTTPS的话，需要对AFN进行两个设置：允许不合法的证书和不验证域名</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">AFHTTPSessionManager *manager = [[AFHTTPSessionManager alloc] initWithBaseURL:[NSURL URLWithString:[self host]]];</span><br><span class="line"></span><br><span class="line">manager.securityPolicy.allowInvalidCertificates = YES;</span><br><span class="line">manager.securityPolicy.validatesDomainName = NO;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/后端/">后端</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
+    <h3 class="article-title"><a href="/2018/02/05/一个事件驱动的图片爬虫/"><span>一个事件驱动的图片爬虫</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/02/05/一个事件驱动的图片爬虫/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-02-05T01:43:43.000Z">
+          2018-02-05
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h4 id="起因"><a href="#起因" class="headerlink" title="起因"></a>起因</h4><ol>
+<li><p>无聊的时候会翻出去看看国外的漫画，然而一页一页加载总是会很慢，偶尔还需要多刷新几次才能显示出来，非常影响体验。于是就写了个脚本去抓某一个漫画下所有的图片，这样跑一遍脚本，就能在本地看图片了。</p>
+</li>
+<li><p>为了偷懒，第一个版本用的单线程模型，几百张图片串行请求，真的慢。</p>
+</li>
+<li><p>实际工作中一直没什么机会用到异步IO，正好拿来练练手。</p>
+</li>
+</ol>
+<h4 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h4><p>并发的下载图片，有多线程和事件驱动两套方案。</p>
+<p>多线程的实现方式，例如一部漫画有300张图，我不可能开300个Thread，系统受不了。比较实际的做法是使用一个容量为N的ThreadPool，那么，同时就只能发出N个请求，然后所有线程Block等待，其实效率也不高</p>
+<p>然而事件驱动的方式就不一样了，我可以一口气把所有请求发出去，当有请求完成时，就调用事先定义的回调Handle，实现了300张图片的并行下载。</p>
+<p>先上图看看效果</p>
+<p><img src="http://upload-images.jianshu.io/upload_images/4073552-b7ed0d072353aa03.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt=""></p>
+<p>从图中就可以看出，所有的请求都发出去之后，才陆续有响应结果乱序到达。这就是典型的异步IO的情景。</p>
+<h4 id="基于EventMachine的异步图片爬虫"><a href="#基于EventMachine的异步图片爬虫" class="headerlink" title="基于EventMachine的异步图片爬虫"></a>基于EventMachine的异步图片爬虫</h4><p>EventMachine是ruby社区知名的事件驱动库，类似于Netty、NodeJS</p>
+<p>通过 EM.run{}就可以开始一个<a href="http://www.ruanyifeng.com/blog/2013/10/event_loop.html" target="_blank" rel="noopener">事件循环</a></p>
+<p>以下是关键代码</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#img_info = [&#123;file_name: '1.jpg', url:'xxx'&#125;...]</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">getImg</span><span class="params">(img_info)</span></span></span><br><span class="line">  EM.run&#123; ＃开启事件循环</span><br><span class="line">    multi = EventMachine::MultiRequest.new ＃request容器</span><br><span class="line">    @img_info_copy = img_info.dup</span><br><span class="line">    img_info.each <span class="keyword">do</span> <span class="params">|info|</span></span><br><span class="line">      file_name = File.join(@dir, info[<span class="symbol">:file_name</span>])</span><br><span class="line">      <span class="keyword">if</span> FileTest::exist?(file_name)</span><br><span class="line">        @img_info_copy.delete(info)</span><br><span class="line">        puts <span class="string">"<span class="subst">#&#123;file_name&#125;</span> skip"</span>.blue</span><br><span class="line">        <span class="keyword">next</span></span><br><span class="line">      <span class="keyword">end</span></span><br><span class="line">      puts <span class="string">"<span class="subst">#&#123;file_name&#125;</span> start"</span>.green</span><br><span class="line">      req = EventMachine::HttpRequest.new(info[<span class="symbol">:url</span>]).get ＃创建request</span><br><span class="line">      multi.add <span class="string">"<span class="subst">#&#123;file_name&#125;</span>"</span>,req</span><br><span class="line">      req.callback &#123; ＃成功回调</span><br><span class="line">        File.open(file_name, <span class="string">'w'</span>) &#123; <span class="params">|file|</span> file.write(req.response) &#125;</span><br><span class="line">        @img_info_copy.delete(info)</span><br><span class="line">        puts <span class="string">"<span class="subst">#&#123;file_name&#125;</span> done"</span>.green</span><br><span class="line">      &#125;</span><br><span class="line">      req.errback &#123; ＃失败回调</span><br><span class="line">        puts <span class="string">"<span class="subst">#&#123;file_name&#125;</span> fail"</span>.red</span><br><span class="line">      &#125;</span><br><span class="line">    <span class="keyword">end</span></span><br><span class="line">    multi.callback <span class="keyword">do</span> ＃所有request都完成后的回调</span><br><span class="line">      <span class="keyword">if</span> @img_info_copy.size == <span class="number">0</span> ＃如果没有图片下载失败</span><br><span class="line">        EM.stop</span><br><span class="line">      <span class="keyword">else</span> ＃递归调用，重新下载的图片</span><br><span class="line">        puts <span class="string">"Total fails: <span class="subst">#&#123;@img_info_copy.size&#125;</span>, solving..."</span>.red</span><br><span class="line">        getImg @img_info_copy.dup</span><br><span class="line">      <span class="keyword">end</span></span><br><span class="line">    <span class="keyword">end</span></span><br><span class="line">  &#125;</span><br><span class="line"><span class="keyword">end</span></span><br></pre></td></tr></table></figure>
+<h4 id="遇到的小坑"><a href="#遇到的小坑" class="headerlink" title="遇到的小坑"></a>遇到的小坑</h4><figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">EM.run &#123;&#125;之后，主线程就block了，所有写在它后面的代码都不执行</span><br></pre></td></tr></table></figure>
+<h4 id="效果"><a href="#效果" class="headerlink" title="效果"></a>效果</h4><p>通过这次的优化，下载一部两三百页漫画的时间从之前单线程版本的二十多分钟，变成了现在的两分钟左右！</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/异步IO/">异步IO</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
+    <h3 class="article-title"><a href="/2018/02/05/使用mina自动化部署Rails应用/"><span>使用mina自动化部署Rails应用</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/02/05/使用mina自动化部署Rails应用/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-02-05T01:41:57.000Z">
+          2018-02-05
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p><img src="http://upload-images.jianshu.io/upload_images/4073552-1881d52edbf495e0.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt=""></p>
+<p>为什么需要自动化部署？</p>
+<h4 id="因为我懒啊！！！"><a href="#因为我懒啊！！！" class="headerlink" title="因为我懒啊！！！"></a>因为我懒啊！！！</h4><h4 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h4><p>mina是rails社区中流行的部署方案，允许你用Ruby DSL描述部署过程，mina生成一份脚本在目标服务器上执行。除了Ruby以外，也支持shell脚本，所以可定制性非常高。相比于老牌的Capstrino，mina一次性上传所有脚本到目标服务器执行，效率上会高一些。</p>
+<h4 id="核心步骤与原理"><a href="#核心步骤与原理" class="headerlink" title="核心步骤与原理"></a>核心步骤与原理</h4><p>mina setup生成目标服务器上的文件夹结构</p>
+<p>mina deploy进行部署</p>
+<p>mina会自动从设置好的git仓库拉代码，运行bundle／migration等一系列流程，然后重启服务器</p>
+<h4 id="简单对比"><a href="#简单对比" class="headerlink" title="简单对比"></a>简单对比</h4><p>手动部署</p>
+<ol>
+<li><p>git pull</p>
+</li>
+<li><p>bundle  install</p>
+</li>
+<li><p>rake db：migrate</p>
+</li>
+<li><p>rake assets：precompile</p>
+</li>
+<li><p>restart web server</p>
+</li>
+</ol>
+<p>自动部署</p>
+<ol>
+<li>mina deploy</li>
+</ol>
+<p>一条命令就可以跑完整个发布流程。当然前提是你的deploy task写的天衣无缝，这需要对rails与linux有一定了解才可以做到。</p>
+<h4 id="举个栗子"><a href="#举个栗子" class="headerlink" title="举个栗子"></a>举个栗子</h4><figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">require <span class="string">'mina/bundler'</span></span><br><span class="line"></span><br><span class="line">require <span class="string">'mina/rails'</span></span><br><span class="line"></span><br><span class="line">require <span class="string">'mina/git'</span></span><br><span class="line"></span><br><span class="line">require <span class="string">'mina/rvm'</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">set</span> :domain, <span class="string">'121.42.12.xx'</span> ＃你的服务器地址或域名</span><br><span class="line"></span><br><span class="line"><span class="built_in">set</span> :deploy_to, <span class="string">'/var/www/api'</span> ＃你打算把项目部署在服务器的哪个文件夹</span><br><span class="line"></span><br><span class="line"><span class="built_in">set</span> :repository, <span class="string">'git@github.com:xxx.git'</span> ＃git仓库</span><br><span class="line"></span><br><span class="line"><span class="built_in">set</span> :branch, <span class="string">'master'</span> ＃git分支</span><br><span class="line"></span><br><span class="line"><span class="built_in">set</span> :term_mode, nil  ＃mina的小bug，设为nil可以解决</span><br><span class="line"></span><br><span class="line"><span class="built_in">set</span> :shared_paths, [<span class="string">'config/sidekiq.yml'</span>, <span class="string">'config/database.yml'</span>, <span class="string">'config/secrets.yml'</span>, <span class="string">'log'</span>, <span class="string">'shared'</span>] ＃很关键，这几个文件夹会在多次部署间，通过符号链接的形式共享</span><br><span class="line"></span><br><span class="line"><span class="built_in">set</span> :user, <span class="string">'moon'</span> ＃ssh 用户名</span><br><span class="line"></span><br><span class="line">task :environment <span class="keyword">do</span></span><br><span class="line"></span><br><span class="line">invoke :<span class="string">'rvm:use[ruby-2.1.0-p0@default]'</span> ＃ruby 版本</span><br><span class="line"></span><br><span class="line">end</span><br><span class="line"></span><br><span class="line">task :setup =&gt; :environment <span class="keyword">do</span>  ＃初始化task，创建文件夹结构</span><br><span class="line"></span><br><span class="line">queue! %[mkdir -p <span class="string">"#&#123;deploy_to&#125;/#&#123;shared_path&#125;/log"</span>]</span><br><span class="line"></span><br><span class="line">queue! %[chmod g+rx,u+rwx <span class="string">"#&#123;deploy_to&#125;/#&#123;shared_path&#125;/log"</span>]</span><br><span class="line"></span><br><span class="line">queue! %[mkdir -p <span class="string">"#&#123;deploy_to&#125;/#&#123;shared_path&#125;/config"</span>]</span><br><span class="line"></span><br><span class="line">queue! %[chmod g+rx,u+rwx <span class="string">"#&#123;deploy_to&#125;/#&#123;shared_path&#125;/config"</span>]</span><br><span class="line"></span><br><span class="line">queue! %[mkdir -p <span class="string">"#&#123;deploy_to&#125;/#&#123;shared_path&#125;/shared"</span>]</span><br><span class="line"></span><br><span class="line">queue! %[chmod g+rx,u+rwx <span class="string">"#&#123;deploy_to&#125;/#&#123;shared_path&#125;/shared"</span>]</span><br><span class="line"></span><br><span class="line">queue! %[touch <span class="string">"#&#123;deploy_to&#125;/#&#123;shared_path&#125;/config/database.yml"</span>]</span><br><span class="line"></span><br><span class="line">queue! %[touch <span class="string">"#&#123;deploy_to&#125;/#&#123;shared_path&#125;/config/secrets.yml"</span>]</span><br><span class="line"></span><br><span class="line">queue  %[<span class="built_in">echo</span> <span class="string">"-----&gt; Be sure to edit '#&#123;deploy_to&#125;/#&#123;shared_path&#125;/config/database.yml' and 'secrets.yml'."</span>]</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> repository</span><br><span class="line"></span><br><span class="line">repo_host = repository.split(%r&#123;@|://&#125;).last.split(%r&#123;:|\/&#125;).first</span><br><span class="line"></span><br><span class="line">repo_port = /:([0-9]+)/.match(repository) &amp;&amp; /:([0-9]+)/.match(repository)[1] || <span class="string">'22'</span></span><br><span class="line"></span><br><span class="line">queue %[</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> ! ssh-keygen -H  -F <span class="comment">#&#123;repo_host&#125; &amp;&gt;/dev/null; then</span></span><br><span class="line"></span><br><span class="line">ssh-keyscan -t rsa -p <span class="comment">#&#123;repo_port&#125; -H #&#123;repo_host&#125; &gt;&gt; ~/.ssh/known_hosts</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">fi</span></span><br><span class="line"></span><br><span class="line">]</span><br><span class="line"></span><br><span class="line">end</span><br><span class="line"></span><br><span class="line">end</span><br><span class="line"></span><br><span class="line">desc <span class="string">"Deploys the current version to the server."</span></span><br><span class="line"></span><br><span class="line">task :deploy =&gt; :environment <span class="keyword">do</span></span><br><span class="line"></span><br><span class="line">to :before_hook <span class="keyword">do</span></span><br><span class="line"></span><br><span class="line">end</span><br><span class="line"></span><br><span class="line">deploy <span class="keyword">do</span> ＃部署流程</span><br><span class="line"></span><br><span class="line">invoke :<span class="string">'git:clone'</span></span><br><span class="line"></span><br><span class="line">invoke :<span class="string">'deploy:link_shared_paths'</span></span><br><span class="line"></span><br><span class="line">invoke :<span class="string">'bundle:install'</span></span><br><span class="line"></span><br><span class="line">invoke :<span class="string">'rails:db_migrate'</span></span><br><span class="line"></span><br><span class="line"><span class="comment">#invoke :'rails:assets_precompile'</span></span><br><span class="line"></span><br><span class="line">invoke :<span class="string">'deploy:cleanup'</span></span><br><span class="line"></span><br><span class="line">invoke :start</span><br><span class="line"></span><br><span class="line">to :launch <span class="keyword">do</span></span><br><span class="line"></span><br><span class="line">queue <span class="string">"mkdir -p #&#123;deploy_to&#125;/#&#123;current_path&#125;/tmp/"</span></span><br><span class="line"></span><br><span class="line">queue <span class="string">"touch #&#123;deploy_to&#125;/#&#123;current_path&#125;/tmp/restart.txt"</span></span><br><span class="line"></span><br><span class="line">end</span><br><span class="line"></span><br><span class="line">end</span><br><span class="line"></span><br><span class="line">end</span><br><span class="line"></span><br><span class="line">desc <span class="string">"start puma &amp; sidekiq"</span></span><br><span class="line"></span><br><span class="line">task :start =&gt; :environment <span class="keyword">do</span></span><br><span class="line"></span><br><span class="line">queue <span class="string">"cd #&#123;deploy_to+"</span>/current<span class="string">"&#125;"</span></span><br><span class="line"></span><br><span class="line">queue <span class="string">"sidekiq -e production -d"</span></span><br><span class="line"></span><br><span class="line">queue <span class="string">"puma -e production"</span></span><br><span class="line"></span><br><span class="line">end</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/自动化部署/">自动化部署</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
+    <h3 class="article-title"><a href="/2018/02/05/自制简易前端MVC框架/"><span>自制简易前端MVC框架</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/02/05/自制简易前端MVC框架/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-02-05T01:35:28.000Z">
+          2018-02-05
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>周末花了大概7小时写了一个简易的响应式blog，原意是练习css的，写着写着却去实现了一套前端路由并渲染的东西，这里写一点心得体会</p>
+<h4 id="基本思路与涉及技术"><a href="#基本思路与涉及技术" class="headerlink" title="基本思路与涉及技术"></a>基本思路与涉及技术</h4><ol>
+<li>使用url hash进行路由跳转</li>
+<li>js监听hashchange事件，根据当前hash去决定界面如何渲染</li>
+<li>调用 addHandler(hash, func) 这个api来映射hash与handler</li>
+<li>gulp，scss， es6，模板引擎</li>
+<li>需要一些es6的知识，需要理解this</li>
+<li>整个工程在 <a href="https://github.com/MoonShining/front-end-hero/tree/master/blog，" target="_blank" rel="noopener">https://github.com/MoonShining/front-end-hero/tree/master/blog，</a> front-end-hero是我自己写的模板代码生成器，用它来练习CSS， 使用<strong>ruby create.rb -n name -s url</strong>来快速创建目录结构，免去重复的工作</li>
+</ol>
+<h4 id="例子"><a href="#例子" class="headerlink" title="例子"></a>例子</h4><p><img src="http://upload-images.jianshu.io/upload_images/4073552-dabf8b4dce1f48e9.gif?imageMogr2/auto-orient/strip" alt="web.gif"></p>
+<h4 id="核心代码"><a href="#核心代码" class="headerlink" title="核心代码"></a>核心代码</h4><figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">(<span class="function"><span class="params">()</span>=&gt;</span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">let</span> blog = <span class="keyword">new</span> Blog()</span><br><span class="line">    <span class="comment">// add simple router</span></span><br><span class="line">    blog.addHandler([<span class="string">''</span>, <span class="string">'#programming'</span>], <span class="function"><span class="keyword">function</span>(<span class="params"></span>)</span>&#123;</span><br><span class="line">        <span class="keyword">let</span> data = &#123;<span class="attr">articles</span>: [&#123;<span class="attr">title</span>: <span class="string">'stories to be continue'</span>, <span class="attr">date</span>: <span class="string">'2017-04-09'</span>&#125;]&#125;</span><br><span class="line">        <span class="keyword">this</span>.compile(<span class="string">'#article-template'</span>, data) </span><br><span class="line">    &#125;)</span><br><span class="line"></span><br><span class="line">    blog.addHandler(<span class="string">'#about'</span>, <span class="function"><span class="keyword">function</span>(<span class="params"></span>)</span>&#123;</span><br><span class="line">        <span class="keyword">let</span> data = &#123;<span class="attr">avatar</span>: <span class="string">'http://7xqlni.com1.z0.glb.clouddn.com/IMG_0337.JPG?imageView2/1/w/100/h/100'</span>, <span class="attr">name</span>: <span class="string">'Jack Zhou'</span>&#125;</span><br><span class="line">        <span class="keyword">this</span>.compile(<span class="string">'#about-template'</span>, data)</span><br><span class="line">    &#125;)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// initialize the page</span></span><br><span class="line">    blog.init()</span><br><span class="line"></span><br><span class="line">&#125;)()</span><br></pre></td></tr></table></figure>
+<p>调用blog.addHandler来自定义路由改变之后触发的动作</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">Blog</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">constructor</span>()&#123;</span><br><span class="line">        <span class="keyword">this</span>.content = <span class="string">'#content'</span></span><br><span class="line">        <span class="keyword">this</span>.router = &#123;&#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    init()&#123;</span><br><span class="line">        <span class="keyword">this</span>.dispatch()</span><br><span class="line">        $(<span class="built_in">window</span>).on(<span class="string">'hashchange'</span>,()=&gt;&#123; </span><br><span class="line">            <span class="keyword">this</span>.dispatch()</span><br><span class="line">        &#125;);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    dispatch()&#123;</span><br><span class="line">        <span class="keyword">this</span>.handle(<span class="built_in">window</span>.location.hash)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    addHandler(hash, func)&#123;</span><br><span class="line">        <span class="keyword">if</span>(<span class="built_in">Array</span>.isArray(hash))&#123;</span><br><span class="line">            <span class="keyword">for</span>(<span class="keyword">let</span> item <span class="keyword">of</span> hash)&#123;</span><br><span class="line">                <span class="keyword">this</span>.router[item] = func</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;<span class="keyword">else</span>&#123;</span><br><span class="line">            <span class="keyword">this</span>.router[hash] = func</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    handle(hash)&#123;</span><br><span class="line">        <span class="keyword">if</span>(<span class="keyword">this</span>.routeMissing(hash))&#123;</span><br><span class="line">            <span class="keyword">this</span>.handle404()</span><br><span class="line">            <span class="keyword">return</span></span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">this</span>.router[hash].call(<span class="keyword">this</span>)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    routeMissing(hash)&#123;</span><br><span class="line">        <span class="keyword">if</span>(<span class="keyword">this</span>.router[hash])</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">        <span class="keyword">else</span></span><br><span class="line">            <span class="keyword">return</span> <span class="literal">true</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    handle404()&#123;</span><br><span class="line">        <span class="built_in">console</span>.log(<span class="string">'handler not found for this hash'</span>)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    compile(templateSelector, data, element=<span class="keyword">this</span>.content)&#123;</span><br><span class="line">        <span class="keyword">let</span> source   = $(templateSelector).html()</span><br><span class="line">        <span class="keyword">let</span> template = Handlebars.compile(source)</span><br><span class="line">        $(element).html(template(data))</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><code>this.router</code>是个是核心，其实也参考了一点Rails的设计，通过一个对象去保存 路由＝》动作 的关系， 并且把核心逻辑都封装在Blog这个类中。</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/前端/">前端</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+  <article>
+
+  
+    
+    <h3 class="article-title"><a href="/2017/02/05/使用vagrant统一开发环境/"><span>使用vagrant统一开发环境</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2017/02/05/使用vagrant统一开发环境/" rel="bookmark">
+        <time class="entry-date published" datetime="2017-02-05T01:33:33.000Z">
+          2017-02-05
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p><img src="http://upload-images.jianshu.io/upload_images/4073552-7b078da0420f2533.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt=""></p>
+<h4 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h4><p><a href="https://www.vagrantup.com/" target="_blank" rel="noopener">vagrant</a>类似现在很流行的docker ，相比起docker打包依赖的方式，vagrant打包的是整个虚拟机。</p>
+<h4 id="核心原理"><a href="#核心原理" class="headerlink" title="核心原理"></a>核心原理</h4><p>vagrant 会把你配置好的虚拟机打包成box， 通过一个Vagrantfile配置这个虚拟机的一些行为。 其他成员只要使用你的box，就可以获得统一的开发环境。</p>
+<h4 id="使用"><a href="#使用" class="headerlink" title="使用"></a>使用</h4><p>安装步骤略去不提，使用vagrant很简单</p>
+<p>1.vagrant init 创建一个文件夹，然后cd到这个文件夹里</p>
+<p>2.vagrant box add hashicorp/precise64 (这个命令会下载ubuntu12.04LTS，也可以从<a href="https://atlas.hashicorp.com/boxes/search" target="_blank" rel="noopener">这里</a>寻找可用的box)</p>
+<p>3.编辑Vagrantfile</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Vagrant.configure(&quot;2&quot;) do |config|</span><br><span class="line">  config.vm.box = &quot;hashicorp/precise64&quot;</span><br><span class="line">end</span><br><span class="line"></span><br><span class="line">注意！ 这里的box值必须与第二步add的值一致！</span><br></pre></td></tr></table></figure>
+<p>4.vagrant up 启动虚拟机</p>
+<p>5.vagrant ssh 登录（也可以手动ssh，注意端口是2222,例如 ssh abc@192.168.1.1 -P 2222）</p>
+<p>6.安装你需要的各种软件，对于我是 RVM, ruby, rails , mysql, redis…</p>
+<p>7.sudo poweroff 关闭虚拟机</p>
+<p>8.vagrant package 把虚拟机打包成box</p>
+<p>9.all done！！！ 分发你的box吧</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/vagrant/">vagrant</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+
+
+
+<nav class="pagination">
+  
+  
+</nav>
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2018 Moon
+    
+  </p>
+</footer>
+    
+  </div>
+</div>
+</body>
+</html>
