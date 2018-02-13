@@ -1,0 +1,182 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>请求优化-百倍性能提升 | Moon&#39;s blog | write the code, change the world.</title>
+
+  
+  <meta name="author" content="Moon">
+  
+
+  
+  <meta name="description" content="Ruby\Golang">
+  
+
+  
+  
+  <meta name="keywords" content="后端,ELK">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="请求优化-百倍性能提升"/>
+
+  <meta property="og:site_name" content="Moon&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/blog/favicon.ico"/>
+  
+
+  <link href="/blog/favicon.ico" rel="icon">
+  <link rel="alternate" href="/blog/atom.xml" title="Moon&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/blog/css/style.css" media="screen" type="text/css">
+</head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/blog/">Moon&#39;s blog</a>
+    </h1>
+    <p class="site-description">write the code, change the world.</p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/blog/">Home</a></li>
+      
+        <li><a href="/blog/archives">Archives</a></li>
+      
+        <li><a href="/blog/tags">Tags</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>请求优化-百倍性能提升</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/blog/2018/02/13/慢请求性能优化-300倍性能提升/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-02-13T06:02:29.000Z">
+          2018-02-13
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h3 id="发现慢请求"><a href="#发现慢请求" class="headerlink" title="发现慢请求"></a>发现慢请求</h3><p>我们的整个web服务是基于Rails的，应用服务器是基于多进程模型的unicorn，因此，慢请求会对系统造成比较大的影响。</p>
+<p>最近又到了春节促销活动时期，为了更及时地发现整个后端系统的问题，我基于Kibana的Visulize功能制作了一个慢请求监控图</p>
+<p><img src="http://7xqlni.com1.z0.glb.clouddn.com/kibanaa.png" alt=""></p>
+<p>通过这个统计图，可以很方便的看出过去N分钟内，响应时间最慢的接口分布情况。</p>
+<h3 id="优化-Cache"><a href="#优化-Cache" class="headerlink" title="优化-Cache"></a>优化-Cache</h3><p>对于图中这个<code>api/v1/publishers</code>接口，会出现很多耗时<code>100ms以上</code>的请求，这个接口做了以下几件事。</p>
+<ol>
+<li>查询数据库，加载一个几乎不怎么变动的publisher列表</li>
+<li>渲染成json返回</li>
+</ol>
+<p>显而易见的优化策略就是cache掉数据库查询，做完这一步的确也能获得比较大的提升，普通的优化工作可能到这一步就结束了。</p>
+<p>但是还有一个特殊的地方，这个列表可能有几百个条目，相对来说还是比较大的。而ruby在做这种CPU密集的渲染时，性能是非常差的。因此，也要想办法解决掉渲染的问题。</p>
+<h3 id="优化-Render"><a href="#优化-Render" class="headerlink" title="优化-Render"></a>优化-Render</h3><p>只render一次。</p>
+<p>相比于之前cache数据库查询的结果的方式，这次在代码中计算出最终返回的json，直接cache这个json字符串。</p>
+<p>然后，在渲染的时候，使用渲染文本，并手动设置content-type的方式来返回json</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">render <span class="symbol">plain:</span> <span class="string">"字符串"</span>, <span class="symbol">content_type:</span> <span class="string">'application/json'</span></span><br></pre></td></tr></table></figure>
+<h3 id="效果"><a href="#效果" class="headerlink" title="效果"></a>效果</h3><p>做完以上两步，在日志中观察到单个请求的时间降低到<code>0.8ms</code>左右！</p>
+<h3 id="Future"><a href="#Future" class="headerlink" title="Future"></a>Future</h3><p>以上优化差不多是Rails框架内的极致，再往上，可以考虑直接把数据静态化成json文件，交给Nginx管理。</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/blog/tags/后端/">后端</a><a href="/blog/tags/ELK/">ELK</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+	<section id="comments" class="comment">
+	  <div id="disqus_thread">
+	  <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+	  </div>
+	</section>
+
+	<script type="text/javascript">
+	var disqus_shortname = 'moons-blog';
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/count.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	</script>
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+  </p>
+</footer>
+    
+<script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+                (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+            m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-113488010-1', 'auto');
+    ga('send', 'pageview');
+
+</script>
+
+  </div>
+</div>
+</body>
+</html>
