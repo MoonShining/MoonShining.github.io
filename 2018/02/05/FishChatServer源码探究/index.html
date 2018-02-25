@@ -95,7 +95,7 @@
   <div class="article-content">
     <div class="entry">
       
-        <p>在写im-go的过程中遇到了一些设计上的问题，于是想找目前有的开源im服务的源码看看。<a href="https://github.com/oikomi/FishChatServer2" target="_blank" rel="noopener">FishChatServer2</a>在一些模块设计上和我的思路很相似，有种英雄所见略同的快感，所以选了它(FishChatServer2的拆包方式和我<a href="https://moonshining.github.io/blog/2018/02/05/golang-tcp%E6%8B%86%E5%8C%85%E7%9A%84%E6%AD%A3%E7%A1%AE%E5%A7%BF%E5%8A%BF">上一篇文章</a>中提到的使用<code>ReadFull</code>的方式是一样的，并且连模块名字都一样叫Codec)</p>
+        <p>在写im-go的过程中遇到了一些设计上的问题，于是想找目前有的开源im服务的源码看看。<a href="https://github.com/oikomi/FishChatServer2" target="_blank" rel="noopener">FishChatServer2</a>在一些模块设计上和我的思路很相似，有种英雄所见略同的快感，所以选了它(FishChatServer2的拆包方式和我<a href="https://moonshining.github.io/blog/2018/02/05/golang-tcp%E6%8B%86%E5%8C%85%E7%9A%84%E6%AD%A3%E7%A1%AE%E5%A7%BF%E5%8A%BF" target="_blank" rel="noopener">上一篇文章</a>中提到的使用<code>ReadFull</code>的方式是一样的，并且连模块名字都一样叫Codec)</p>
 <p>主要看了libnet和server两个模块</p>
 <p>libnet, 是所有server的基础公共库，封装了诸如Listen Accept之类的调用<br><img src="http://7xqlni.com1.z0.glb.clouddn.com/libnet.png" alt=""></p>
 <p>server, 具体的服务，看了一下gateway和access两个服务的实现<br><img src="http://7xqlni.com1.z0.glb.clouddn.com/server.png" alt=""></p>
