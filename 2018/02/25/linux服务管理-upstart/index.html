@@ -1,0 +1,236 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>linux服务管理1-upstart | Moon&#39;s blog | write the code, change the world.</title>
+
+  
+  <meta name="author" content="Moon">
+  
+
+  
+  <meta name="description" content="Ruby\Golang">
+  
+
+  
+  
+  <meta name="keywords" content="后端,linux">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="linux服务管理1-upstart"/>
+
+  <meta property="og:site_name" content="Moon&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/blog/favicon.ico"/>
+  
+
+  <link href="/blog/favicon.ico" rel="icon">
+  <link rel="alternate" href="/blog/atom.xml" title="Moon&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/blog/css/style.css" media="screen" type="text/css">
+
+  <script>
+  var _hmt = _hmt || [];
+  (function() {
+    var hm = document.createElement("script");
+    hm.src = "https://hm.baidu.com/hm.js?6a1fad5ff0e16bcae365591984e41d34";
+    var s = document.getElementsByTagName("script")[0]; 
+    s.parentNode.insertBefore(hm, s);
+  })();
+  </script>
+</head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/blog/">Moon&#39;s blog</a>
+    </h1>
+    <p class="site-description">write the code, change the world.</p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/blog/">Home</a></li>
+      
+        <li><a href="/blog/archives">Archives</a></li>
+      
+        <li><a href="/blog/tags">Tags</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>linux服务管理1-upstart</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/blog/2018/02/25/linux服务管理-upstart/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-02-25T01:48:30.000Z">
+          2018-02-25
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p><img src="https://assets.digitalocean.com/articles/upstart_event_system/1.png" alt=""><br>当我们写完一个go程序时，部署只需要把二进制包拷贝到服务器上即可。</p>
+<p>但在真正的<strong>生产环境</strong>中，如果程序出于某种原因崩溃了，我们会面临两个问题</p>
+<ol>
+<li>如何得知程序崩溃，如果靠人工的方式，无疑是有巨大时间滞后的</li>
+<li>如何方便的在崩溃后重启</li>
+</ol>
+<p>在Ruby的世界中，例如unicorn这样的应用服务器，会有一个master进程，专门解决以上问题，当worker崩溃时，master就会重新fork出一个worker进程。</p>
+<h3 id="upstart简介"><a href="#upstart简介" class="headerlink" title="upstart简介"></a>upstart简介</h3><p>upstart是linux主流发行版(ubuntu,RHEL…)本自带的进程管理系统</p>
+<p>程序开发时需要注意的事项</p>
+<p>作为程序开发人员，在编写系统服务时，需要了解 upstart 的一些特殊要求。只有符合这些要求的软件才可以被 upstart 管理。</p>
+<p>规则一，派生次数需声明。</p>
+<p>很多 Linux 后台服务都通过派生两次的技巧将自己变成后台服务程序。如果您编写的服务也采用了这个技术，就必须通过文档或其它的某种方式明确地让 upstart 的维护人员知道这一点，这将影响 upstart 的 expect stanza，我们在前面已经详细介绍过这个 stanza 的含义。</p>
+<p>规则二，派生后即可用。</p>
+<p>后台程序在完成第二次派生的时候，必须保证服务已经可用。因为 upstart 通过派生计数来决定服务是否处于就绪状态。</p>
+<p>规则三，遵守 SIGHUP 的要求。</p>
+<p>upstart 会给守护进程发送 SIGHUP 信号，此时，upstart 希望该守护进程做以下这些响应工作：</p>
+<p>•完成所有必要的重新初始化工作，比如重新读取配置文件。这是因为 upstart 的命令”initctl reload”被设计为可以让服务在不重启的情况下更新配置。</p>
+<p>•守护进程必须继续使用现有的 PID，即收到 SIGHUP 时不能调用 fork。如果服务必须在这里调用 fork，则等同于派生两次，参考上面的规则一的处理。这个规则保证了 upstart 可以继续使用 PID 管理本服务。</p>
+<p>规则四，收到 SIGTEM 即 shutdown。</p>
+<p>•当收到 SIGTERM 信号后，upstart 希望守护进程进程立即干净地退出，释放所有资源。如果一个进程在收到 SIGTERM 信号后不退出，upstart 将对其发送 SIGKILL 信号。</p>
+<h3 id="日常upstart命令"><a href="#日常upstart命令" class="headerlink" title="日常upstart命令"></a>日常upstart命令</h3><table>
+<thead>
+<tr>
+<th>全部</th>
+<th>简写</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>initctl start</td>
+<td>start</td>
+</tr>
+<tr>
+<td>initctl restart</td>
+<td>restart</td>
+</tr>
+<tr>
+<td>initctl reload</td>
+<td>reload</td>
+</tr>
+<tr>
+<td>initctl stop</td>
+<td>stop</td>
+</tr>
+</tbody>
+</table>
+<h3 id="编写upstart配置文件"><a href="#编写upstart配置文件" class="headerlink" title="编写upstart配置文件"></a>编写upstart配置文件</h3><ol>
+<li>upstart脚本必须包含一个exec或者script片段，用于启动你的程序</li>
+<li>pre-start script and post-stop script是一些钩子，可以在程序启动前后做一些事</li>
+<li>start on and stop on定义了何时启动、停止你的程序</li>
+</ol>
+<hr>
+<p>golang多用于写网络服务，以Nginx的官方upstart脚本为参考比较合适</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"># http://wiki.nginx.org/upstart</span><br><span class="line"># nginx</span><br><span class="line"></span><br><span class="line">description &quot;nginx http daemon&quot;</span><br><span class="line">author &quot;George Shammas &lt;georgyo@gmail.com&gt;&quot;</span><br><span class="line"></span><br><span class="line">start on (filesystem and net-device-up IFACE!=lo) 两个条件 文件系统和网络设备启动以后</span><br><span class="line">stop on runlevel [!2345]</span><br><span class="line"></span><br><span class="line">env DAEMON=/usr/sbin/nginx</span><br><span class="line">env PID=/var/run/nginx.pid</span><br><span class="line"></span><br><span class="line">expect fork</span><br><span class="line">respawn</span><br><span class="line">respawn limit 10 5</span><br><span class="line">#oom never</span><br><span class="line"></span><br><span class="line">pre-start script</span><br><span class="line">        $DAEMON -t</span><br><span class="line">        if [ $? -ne 0 ] 判断nginx -t命令的返回值是否是0(不是EXIT_SUCCESS)</span><br><span class="line">                then exit $?</span><br><span class="line">        fi</span><br><span class="line">end script</span><br><span class="line"></span><br><span class="line">exec $DAEMON</span><br></pre></td></tr></table></figure>
+<p>简单写一个</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">description &quot;naive http golang server&quot;</span><br><span class="line">author &quot;xxx&quot;</span><br><span class="line"></span><br><span class="line">start on (filesystem and net-device-up IFACE!=lo)</span><br><span class="line">stop on runlevel [!2345]</span><br><span class="line"></span><br><span class="line">respawn</span><br><span class="line"></span><br><span class="line">chdir /vagrant</span><br><span class="line"></span><br><span class="line">exec ./naivehttpserver</span><br></pre></td></tr></table></figure>
+<p>这样，就可以使用<code>sudo start naivehttpserver</code>这样的命令来管理naivehttpserver服务了。</p>
+<p>更全的用法可以看<a href="http://upstart.ubuntu.com/cookbook/" target="_blank" rel="noopener">http://upstart.ubuntu.com/cookbook/</a>和<a href="http://upstart.ubuntu.com/wiki/" target="_blank" rel="noopener">http://upstart.ubuntu.com/wiki/</a></p>
+<h3 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h3><p><a href="https://www.ibm.com/developerworks/cn/linux/1407_liuming_init2/index.html" target="_blank" rel="noopener">浅析 Linux 初始化 init 系统，第 2 部分</a></p>
+<p><a href="http://upstart.ubuntu.com/getting-started.html" target="_blank" rel="noopener">http://upstart.ubuntu.com/getting-started.html</a></p>
+<p><a href="http://blog.fens.me/linux-upstart/" target="_blank" rel="noopener">http://blog.fens.me/linux-upstart/</a></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/blog/tags/后端/">后端</a><a href="/blog/tags/linux/">linux</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+	<section id="comments" class="comment">
+	  <div id="disqus_thread">
+	  <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+	  </div>
+	</section>
+
+	<script type="text/javascript">
+	var disqus_shortname = 'moons-blog';
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/count.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	</script>
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+  </p>
+</footer>
+    
+<script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+                (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+            m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-113488010-1', 'auto');
+    ga('send', 'pageview');
+
+</script>
+
+  </div>
+</div>
+</body>
+</html>
