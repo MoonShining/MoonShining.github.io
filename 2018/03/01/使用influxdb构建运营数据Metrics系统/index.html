@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   
-  <title>使用influxdb构建运营数据Metrics系统 | Moon&#39;s blog | write the code, change the world.</title>
+  <title>使用influxdb收集用户行为数据 | Moon&#39;s blog | write the code, change the world.</title>
 
   
   <meta name="author" content="Moon">
@@ -22,7 +22,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
 
-  <meta property="og:title" content="使用influxdb构建运营数据Metrics系统"/>
+  <meta property="og:title" content="使用influxdb收集用户行为数据"/>
 
   <meta property="og:site_name" content="Moon&#39;s blog"/>
 
@@ -75,7 +75,7 @@
 
   
     
-    <h3 class="article-title"><span>使用influxdb构建运营数据Metrics系统</span></h3>
+    <h3 class="article-title"><span>使用influxdb收集用户行为数据</span></h3>
     
   
 
@@ -95,7 +95,7 @@
   <div class="article-content">
     <div class="entry">
       
-        <p>目前我们需要收集一些用户行为数据。</p>
+        <p>目前我们需要收集一些用户在站点上的行为数据。</p>
 <p>influxdb内置了HTTP API,免去了编写接入代码的繁琐，并带有数据查询和展示的组件，非常适合。</p>
 <p>安装过程略去不提，参考<a href="https://docs.influxdata.com/influxdb/v1.4/introduction/getting_started/" target="_blank" rel="noopener">官方文档</a></p>
 <h3 id="目录"><a href="#目录" class="headerlink" title="目录"></a>目录</h3><ul>
@@ -150,8 +150,9 @@
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">CREATE RETENTION POLICY &quot;one_day_only&quot; ON &quot;mydb&quot; DURATION 1d REPLICATION 1 DEFAULT</span><br></pre></td></tr></table></figure>
 <h2 id="Chronograf"><a href="#Chronograf" class="headerlink" title="Chronograf"></a>Chronograf</h2><p>官方有一个叫TICK的技术栈推荐，但对于我们的场景，只要结合其中的IC就可以了，即influxdb和chronograf.</p>
 <p><a href="https://docs.influxdata.com/influxdb/v1.2/introduction/installation/" target="_blank" rel="noopener">安装启动过程</a>不提</p>
-<p>在使用它之前，需要先学习一下基本的<a href="https://docs.influxdata.com/influxdb/v1.4/query_language/data_exploration/" target="_blank" rel="noopener">查询语法</a></p>
-<p>[TO BE CONTINUE]</p>
+<p>在使用它之前，需要先学习一下基本的<a href="https://docs.influxdata.com/influxdb/v1.4/query_language/data_exploration/" target="_blank" rel="noopener">influxdb查询语法</a></p>
+<p><img src="http://7xqlni.com1.z0.glb.clouddn.com/chronograf.png" alt=""></p>
+<p>这样，就可以轻松的在Chronograf中查询数据了，如果需要额外的数据，可以让业务方导出csv自行分析。</p>
 
       
     </div>
