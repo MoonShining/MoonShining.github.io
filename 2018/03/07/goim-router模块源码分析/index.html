@@ -1,0 +1,176 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>goim-router模块源码分析 | Moon&#39;s blog | write the code, change the world.</title>
+
+  
+  <meta name="author" content="Moon">
+  
+
+  
+  <meta name="description" content="Ruby\Golang">
+  
+
+  
+  
+  <meta name="keywords" content="golang,goim源码分析">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="goim-router模块源码分析"/>
+
+  <meta property="og:site_name" content="Moon&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="Moon&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+
+  <script>
+  var _hmt = _hmt || [];
+  (function() {
+    var hm = document.createElement("script");
+    hm.src = "https://hm.baidu.com/hm.js?a9ab16fc25a6e74e9e3521e7ad3782e8";
+    var s = document.getElementsByTagName("script")[0]; 
+    s.parentNode.insertBefore(hm, s);
+  })();
+  </script>
+</head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">Moon&#39;s blog</a>
+    </h1>
+    <p class="site-description">write the code, change the world.</p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">主页</a></li>
+      
+        <li><a href="/archives">归档</a></li>
+      
+        <li><a href="/tags">标签</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>goim-router模块源码分析</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/03/07/goim-router模块源码分析/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-03-07T08:17:13.000Z">
+          2018-03-07
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>这个模块一看就知道，消息路由服务嘛</p>
+<p>文档里是这样描述的<br>router 属于有状态节点，logic可以使用一致性hash配置节点，增加多个router节点（目前还不支持动态扩容），提前预估好在线和压力情况</p>
+<p>从main.go入手</p>
+<figure class="highlight golang"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">    flag.Parse()</span><br><span class="line">    <span class="keyword">if</span> err := InitConfig(); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="built_in">panic</span>(err)</span><br><span class="line">    &#125;</span><br><span class="line">    runtime.GOMAXPROCS(Conf.MaxProc)</span><br><span class="line">    log.LoadConfiguration(Conf.Log)</span><br><span class="line">    <span class="keyword">defer</span> log.Close()</span><br><span class="line">    log.Info(<span class="string">"router[%s] start"</span>, VERSION)</span><br><span class="line">    <span class="comment">// start prof</span></span><br><span class="line">    perf.Init(Conf.PprofAddrs)</span><br><span class="line">    <span class="comment">// start monitor</span></span><br><span class="line">    <span class="keyword">if</span> Conf.MonitorOpen &#123;</span><br><span class="line">        InitMonitor(Conf.MonitorAddrs)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// start rpc</span></span><br><span class="line">    buckets := <span class="built_in">make</span>([]*Bucket, Conf.Bucket)</span><br><span class="line">    <span class="keyword">for</span> i := <span class="number">0</span>; i &lt; Conf.Bucket; i++ &#123;</span><br><span class="line">        buckets[i] = NewBucket(Conf.Session, Conf.Server, Conf.Cleaner)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> err := InitRPC(buckets); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="built_in">panic</span>(err)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// block until a signal is received.</span></span><br><span class="line">    InitSignal()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>忽略flag和config部分的处理，这里主要涉及了<strong>perf</strong>，<strong>monitor</strong>监控，主<strong>RPC</strong>逻辑,以及<strong>signal</strong>处理</p>
+<h3 id="perf"><a href="#perf" class="headerlink" title="perf"></a>perf</h3><p>内部使用了net/http/pprof进行性能分析</p>
+<figure class="highlight golang"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Init</span><span class="params">(pprofBind []<span class="keyword">string</span>)</span></span> &#123;</span><br><span class="line">    pprofServeMux := http.NewServeMux()</span><br><span class="line">    pprofServeMux.HandleFunc(<span class="string">"/debug/pprof/"</span>, pprof.Index)</span><br><span class="line">    pprofServeMux.HandleFunc(<span class="string">"/debug/pprof/cmdline"</span>, pprof.Cmdline)</span><br><span class="line">    pprofServeMux.HandleFunc(<span class="string">"/debug/pprof/profile"</span>, pprof.Profile)</span><br><span class="line">    pprofServeMux.HandleFunc(<span class="string">"/debug/pprof/symbol"</span>, pprof.Symbol)</span><br><span class="line">    <span class="keyword">for</span> _, addr := <span class="keyword">range</span> pprofBind &#123;</span><br><span class="line">        <span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">            <span class="keyword">if</span> err := http.ListenAndServe(addr, pprofServeMux); err != <span class="literal">nil</span> &#123;</span><br><span class="line">                log.Error(<span class="string">"http.ListenAndServe(\"%s\", pprofServeMux) error(%v)"</span>, addr, err)</span><br><span class="line">                <span class="built_in">panic</span>(err)</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;()</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="monitor"><a href="#monitor" class="headerlink" title="monitor"></a>monitor</h3><p>是一个简单ping请求处理,一看就是用来监测服务存活状态的</p>
+<figure class="highlight golang"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">InitMonitor</span><span class="params">(binds []<span class="keyword">string</span>)</span></span> &#123;</span><br><span class="line">    m := <span class="built_in">new</span>(Monitor)</span><br><span class="line">    monitorServeMux := http.NewServeMux()</span><br><span class="line">    monitorServeMux.HandleFunc(<span class="string">"/monitor/ping"</span>, m.Ping)</span><br><span class="line">    <span class="keyword">for</span> _, addr := <span class="keyword">range</span> binds &#123;</span><br><span class="line">        <span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">(bind <span class="keyword">string</span>)</span></span> &#123;</span><br><span class="line">            <span class="keyword">if</span> err := http.ListenAndServe(bind, monitorServeMux); err != <span class="literal">nil</span> &#123;</span><br><span class="line">                log.Error(<span class="string">"http.ListenAndServe(\"%s\", pprofServeMux) error(%v)"</span>, addr, err)</span><br><span class="line">                <span class="built_in">panic</span>(err)</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;(addr)</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// monitor ping</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(m *Monitor)</span> <span class="title">Ping</span><span class="params">(w http.ResponseWriter, r *http.Request)</span></span> &#123;</span><br><span class="line">    w.Write([]<span class="keyword">byte</span>(<span class="string">"ok"</span>))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="signal"><a href="#signal" class="headerlink" title="signal"></a>signal</h3><p>信号处理，收到SIGHUP重载配置，这是符合linux上惯用约定的</p>
+<figure class="highlight golang"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">InitSignal</span><span class="params">()</span></span> &#123;</span><br><span class="line">    c := <span class="built_in">make</span>(<span class="keyword">chan</span> os.Signal, <span class="number">1</span>)</span><br><span class="line">    signal.Notify(c, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT, syscall.SIGSTOP)</span><br><span class="line">    <span class="keyword">for</span> &#123;</span><br><span class="line">        s := &lt;-c</span><br><span class="line">        log.Info(<span class="string">"router[%s] get a signal %s"</span>, VERSION, s.String())</span><br><span class="line">        <span class="keyword">switch</span> s &#123;</span><br><span class="line">        <span class="keyword">case</span> syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGSTOP, syscall.SIGINT:</span><br><span class="line">            <span class="keyword">return</span></span><br><span class="line">        <span class="keyword">case</span> syscall.SIGHUP:</span><br><span class="line">            reload()</span><br><span class="line">        <span class="keyword">default</span>:</span><br><span class="line">            <span class="keyword">return</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">reload</span><span class="params">()</span></span> &#123;</span><br><span class="line">    newConf, err := ReloadConfig()</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">        log.Error(<span class="string">"ReloadConfig() error(%v)"</span>, err)</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    Conf = newConf</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="主RPC逻辑"><a href="#主RPC逻辑" class="headerlink" title="主RPC逻辑"></a>主RPC逻辑</h2><p>to be continue…</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/golang/">golang</a><a href="/tags/goim源码分析/">goim源码分析</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+	<section id="comments" class="comment">
+	  <div id="disqus_thread">
+	  <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+	  </div>
+	</section>
+
+	<script type="text/javascript">
+	var disqus_shortname = 'moons-blog';
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/count.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	</script>
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+  </p>
+</footer>
+    
+  </div>
+</div>
+</body>
+</html>
