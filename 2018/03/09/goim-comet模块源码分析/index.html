@@ -1,0 +1,181 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>goim-comet模块源码分析 | Moon&#39;s blog | write the code, change the world.</title>
+
+  
+  <meta name="author" content="Moon">
+  
+
+  
+  <meta name="description" content="Ruby\Golang">
+  
+
+  
+  
+  <meta name="keywords" content="golang,goim源码分析">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="goim-comet模块源码分析"/>
+
+  <meta property="og:site_name" content="Moon&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="Moon&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+
+  <script>
+  var _hmt = _hmt || [];
+  (function() {
+    var hm = document.createElement("script");
+    hm.src = "https://hm.baidu.com/hm.js?a9ab16fc25a6e74e9e3521e7ad3782e8";
+    var s = document.getElementsByTagName("script")[0]; 
+    s.parentNode.insertBefore(hm, s);
+  })();
+  </script>
+</head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">Moon&#39;s blog</a>
+    </h1>
+    <p class="site-description">write the code, change the world.</p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">Home</a></li>
+      
+        <li><a href="/archives">Archives</a></li>
+      
+        <li><a href="/tags">Tags</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>goim-comet模块源码分析</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/03/09/goim-comet模块源码分析/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-03-09T02:04:31.000Z">
+          2018-03-09
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>comet是客户端直接连接的节点，设计上是无状态的。通过rpc与logic服务交互，对外提供TCP、HTTP、WebSocket连接方式，自己也作为push这个rpc服务的提供方</p>
+<figure class="highlight golang"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//main.go</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> err := InitLogicRpc(Conf.LogicAddrs); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        log.Warn(<span class="string">"logic rpc current can't connect, retry"</span>)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// start monitor</span></span><br><span class="line">    <span class="keyword">if</span> Conf.MonitorOpen &#123;</span><br><span class="line">        InitMonitor(Conf.MonitorAddrs)</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    ... <span class="comment">//bucket round server的初始化，下面会讲</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// white list</span></span><br><span class="line">    <span class="comment">// tcp comet</span></span><br><span class="line">    <span class="keyword">if</span> err := InitTCP(Conf.TCPBind, Conf.MaxProc); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="built_in">panic</span>(err)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// websocket comet</span></span><br><span class="line">    <span class="keyword">if</span> err := InitWebsocket(Conf.WebsocketBind); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="built_in">panic</span>(err)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// flash safe policy</span></span><br><span class="line">    <span class="keyword">if</span> Conf.FlashPolicyOpen &#123;</span><br><span class="line">        <span class="keyword">if</span> err := InitFlashPolicy(); err != <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="built_in">panic</span>(err)</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// wss comet</span></span><br><span class="line">    <span class="keyword">if</span> Conf.WebsocketTLSOpen &#123;</span><br><span class="line">        <span class="keyword">if</span> err := InitWebsocketWithTLS(Conf.WebsocketTLSBind, Conf.WebsocketCertFile, Conf.WebsocketPrivateFile); err != <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="built_in">panic</span>(err)</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// start rpc</span></span><br><span class="line">    <span class="keyword">if</span> err := InitRPCPush(Conf.RPCPushAddrs); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="built_in">panic</span>(err)</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<h2 id="InitTCP"><a href="#InitTCP" class="headerlink" title="InitTCP"></a>InitTCP</h2><p>InitXXX的作用是暴露不同的服务给客户端使用，选一个看就可以了。</p>
+<p>在多个gorutine中调用了AcceptTCP，充分发挥多核能力<br><figure class="highlight golang"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> i := <span class="number">0</span>; i &lt; accept; i++ &#123;</span><br><span class="line">    <span class="keyword">go</span> acceptTCP(DefaultServer, listener)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>accept之后，核心逻辑实现在serveTCP中,首先调用auth服务，获得subKey,然后把channel放进bucket里</p>
+<figure class="highlight golang"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ... </span></span><br><span class="line"><span class="keyword">if</span> p, err = ch.CliProto.Set(); err == <span class="literal">nil</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> key, ch.RoomId, hb, err = server.authTCP(rr, wr, p); err == <span class="literal">nil</span> &#123;</span><br><span class="line">        b = server.Bucket(key)</span><br><span class="line">        err = b.Put(key, ch)</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>serveTCP方法中，当前gorutine负责读数据，处理心跳，把数据封装成proto对象然后保存到channel的CliProto中，然后通知dispatchTCP处理<br><figure class="highlight golang"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> p, err = ch.CliProto.Set(); err != <span class="literal">nil</span> &#123; <span class="comment">// 从channel中申请一个buffer用来存放proto</span></span><br><span class="line">            <span class="keyword">break</span></span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> white &#123;</span><br><span class="line">            DefaultWhitelist.Log.Printf(<span class="string">"key: %s start read proto\n"</span>, key)</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> err = p.ReadTCP(rr); err != <span class="literal">nil</span> &#123; <span class="comment">// 读proto</span></span><br><span class="line">            <span class="keyword">break</span></span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> white &#123;</span><br><span class="line">            DefaultWhitelist.Log.Printf(<span class="string">"key: %s read proto:%v\n"</span>, key, p)</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> p.Operation == define.OP_HEARTBEAT &#123; <span class="comment">// 维持心跳</span></span><br><span class="line">            tr.Set(trd, hb)</span><br><span class="line">            p.Body = <span class="literal">nil</span></span><br><span class="line">            p.Operation = define.OP_HEARTBEAT_REPLY</span><br><span class="line">            <span class="keyword">if</span> Debug &#123;</span><br><span class="line">                log.Debug(<span class="string">"key: %s receive heartbeat"</span>, key)</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="keyword">if</span> err = server.operator.Operate(p); err != <span class="literal">nil</span> &#123;</span><br><span class="line">                <span class="keyword">break</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> white &#123;</span><br><span class="line">            DefaultWhitelist.Log.Printf(<span class="string">"key: %s process proto:%v\n"</span>, key, p)</span><br><span class="line">        &#125;</span><br><span class="line">        ch.CliProto.SetAdv()</span><br><span class="line">        ch.Signal() <span class="comment">//通知dispatchTCP处理</span></span><br><span class="line">        <span class="keyword">if</span> white &#123;</span><br><span class="line">            DefaultWhitelist.Log.Printf(<span class="string">"key: %s signal\n"</span>, key)</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>dispatchTCP中，如果收到proto.ProtoReady，就表示读取到了一个proto，然后原样写回？</p>
+<figure class="highlight golang"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> proto.ProtoReady:</span><br><span class="line">    <span class="comment">// fetch message from svrbox(client send)</span></span><br><span class="line">    <span class="keyword">for</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> p, err = ch.CliProto.Get(); err != <span class="literal">nil</span> &#123;</span><br><span class="line">            err = <span class="literal">nil</span> <span class="comment">// must be empty error</span></span><br><span class="line">            <span class="keyword">break</span></span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> white &#123;</span><br><span class="line">            DefaultWhitelist.Log.Printf(<span class="string">"key: %s start write client proto%v\n"</span>, key, p)</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> err = p.WriteTCP(wr); err != <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="keyword">goto</span> failed</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> white &#123;</span><br><span class="line">            DefaultWhitelist.Log.Printf(<span class="string">"key: %s write client proto%v\n"</span>, key, p)</span><br><span class="line">        &#125;</span><br><span class="line">        p.Body = <span class="literal">nil</span> <span class="comment">// avoid memory leak</span></span><br><span class="line">        ch.CliProto.GetAdv()</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<h3 id="Round"><a href="#Round" class="headerlink" title="Round"></a>Round</h3><p>goim自己进行了buffer的管理，避免了频繁申请内存的开销。通过自定义的Pool结构来分配Buffer，因为分配时要加锁，使用Round来组合多个Pool，通过mod运算随机获取一个Pool，来减缓锁的争用。</p>
+<figure class="highlight golang"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// round.go</span></span><br><span class="line"><span class="comment">// Reader get a reader memory buffer.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *Round)</span> <span class="title">Reader</span><span class="params">(rn <span class="keyword">int</span>)</span> *<span class="title">bytes</span>.<span class="title">Pool</span></span> &#123;</span><br><span class="line">    <span class="keyword">return</span> &amp;(r.readers[rn%r.options.Reader])</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Writer get a writer memory buffer pool.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *Round)</span> <span class="title">Writer</span><span class="params">(rn <span class="keyword">int</span>)</span> *<span class="title">bytes</span>.<span class="title">Pool</span></span> &#123;</span><br><span class="line">    <span class="keyword">return</span> &amp;(r.writers[rn%r.options.Writer])</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>Pool内部使用一条单链表，维护一个free指针指向未分配的buffer</p>
+<figure class="highlight golang"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// libs/buffer.go</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(p *Pool)</span> <span class="title">grow</span><span class="params">()</span></span> &#123;</span><br><span class="line">    <span class="keyword">var</span> (</span><br><span class="line">        i   <span class="keyword">int</span></span><br><span class="line">        b   *Buffer</span><br><span class="line">        bs  []Buffer</span><br><span class="line">        buf []<span class="keyword">byte</span></span><br><span class="line">    )</span><br><span class="line">    buf = <span class="built_in">make</span>([]<span class="keyword">byte</span>, p.max) <span class="comment">// 所有的Buffer都从这里分配</span></span><br><span class="line">    bs = <span class="built_in">make</span>([]Buffer, p.num) <span class="comment">// Buffer数组</span></span><br><span class="line">    p.free = &amp;bs[<span class="number">0</span>] <span class="comment">//构造Buffer链</span></span><br><span class="line">    b = p.free</span><br><span class="line">    <span class="keyword">for</span> i = <span class="number">1</span>; i &lt; p.num; i++ &#123;</span><br><span class="line">        b.buf = buf[(i<span class="number">-1</span>)*p.size : i*p.size]</span><br><span class="line">        b.next = &amp;bs[i]</span><br><span class="line">        b = b.next</span><br><span class="line">    &#125;</span><br><span class="line">    b.buf = buf[(i<span class="number">-1</span>)*p.size : i*p.size]</span><br><span class="line">    b.next = <span class="literal">nil</span></span><br><span class="line">    <span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Get get a free memory buffer.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(p *Pool)</span> <span class="title">Get</span><span class="params">()</span> <span class="params">(b *Buffer)</span></span> &#123;</span><br><span class="line">    p.lock.Lock()</span><br><span class="line">    <span class="keyword">if</span> b = p.free; b == <span class="literal">nil</span> &#123;</span><br><span class="line">        p.grow()</span><br><span class="line">        b = p.free</span><br><span class="line">    &#125;</span><br><span class="line">    p.free = b.next</span><br><span class="line">    p.lock.Unlock()</span><br><span class="line">    <span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="Timer"><a href="#Timer" class="headerlink" title="Timer"></a>Timer</h3><p>goim的Timer也是基于堆结构改写的，内部只有一个timer，不断设置成堆顶元素的触发时间。<br><figure class="highlight golang"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// lib/time/timer.go</span></span><br></pre></td></tr></table></figure></p>
+<h3 id="Channel"><a href="#Channel" class="headerlink" title="Channel"></a>Channel</h3><figure class="highlight golang"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Channel <span class="keyword">struct</span> &#123;</span><br><span class="line">    RoomId   <span class="keyword">int32</span></span><br><span class="line">    CliProto Ring</span><br><span class="line">    signal   <span class="keyword">chan</span> *proto.Proto</span><br><span class="line">    Writer   bufio.Writer</span><br><span class="line">    Reader   bufio.Reader</span><br><span class="line">    Next     *Channel</span><br><span class="line">    Prev     *Channel</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="Ring"><a href="#Ring" class="headerlink" title="Ring"></a>Ring</h4><p>Ring是Channel内部用来保存并重用proto的一个结构<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">type Ring struct &#123;</span><br><span class="line">    // read</span><br><span class="line">    rp   uint64</span><br><span class="line">    num  uint64</span><br><span class="line">    mask uint64</span><br><span class="line">    // TODO split cacheline, many cpu cache line size is 64</span><br><span class="line">    // pad [40]byte</span><br><span class="line">    // write</span><br><span class="line">    wp   uint64</span><br><span class="line">    data []proto.Proto</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<h3 id="Bucket"><a href="#Bucket" class="headerlink" title="Bucket"></a>Bucket</h3><p>bucket是channel的容器<br><figure class="highlight golang"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//main.go</span></span><br><span class="line"></span><br><span class="line">    buckets := <span class="built_in">make</span>([]*Bucket, Conf.Bucket)</span><br><span class="line">    <span class="keyword">for</span> i := <span class="number">0</span>; i &lt; Conf.Bucket; i++ &#123;</span><br><span class="line">        buckets[i] = NewBucket(BucketOptions&#123;</span><br><span class="line">            ChannelSize:   Conf.BucketChannel,</span><br><span class="line">            RoomSize:      Conf.BucketRoom,</span><br><span class="line">            RoutineAmount: Conf.RoutineAmount,</span><br><span class="line">            RoutineSize:   Conf.RoutineSize,</span><br><span class="line">        &#125;)</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/golang/">golang</a><a href="/tags/goim源码分析/">goim源码分析</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+	<section id="comments" class="comment">
+	  <div id="disqus_thread">
+	  <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+	  </div>
+	</section>
+
+	<script type="text/javascript">
+	var disqus_shortname = 'moons-blog';
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/count.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	</script>
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+  </p>
+</footer>
+    
+  </div>
+</div>
+</body>
+</html>
