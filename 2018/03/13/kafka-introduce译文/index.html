@@ -1,0 +1,215 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>kafka introduce | Moon&#39;s blog | write the code, change the world.</title>
+
+  
+  <meta name="author" content="Moon">
+  
+
+  
+  <meta name="description" content="Ruby\Golang">
+  
+
+  
+  
+  <meta name="keywords" content="kafka">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="kafka introduce"/>
+
+  <meta property="og:site_name" content="Moon&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="Moon&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+
+  <script>
+  var _hmt = _hmt || [];
+  (function() {
+    var hm = document.createElement("script");
+    hm.src = "https://hm.baidu.com/hm.js?a9ab16fc25a6e74e9e3521e7ad3782e8";
+    var s = document.getElementsByTagName("script")[0]; 
+    s.parentNode.insertBefore(hm, s);
+  })();
+  </script>
+</head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">Moon&#39;s blog</a>
+    </h1>
+    <p class="site-description">write the code, change the world.</p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">Home</a></li>
+      
+        <li><a href="/archives">Archives</a></li>
+      
+        <li><a href="/tags">Tags</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>kafka introduce</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/03/13/kafka-introduce译文/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-03-13T01:57:21.000Z">
+          2018-03-13
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>年前看过一遍kafka的文档，没想到现在忘得差不多了，于是结合自己的理解来写一篇译文。</p>
+<h3 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h3><p>kafka是一个分布式流处理平台</p>
+<p>有三个关键特性</p>
+<ul>
+<li>发布、订阅，类似消息队列</li>
+<li>错误容忍的持久化流数据</li>
+<li>处理流式数据</li>
+</ul>
+<p>kafka有两个比较大的应用场景</p>
+<ul>
+<li>构建实时流数据管道(偏向于数据传输)</li>
+<li>构建实时流数据处理(根据数据做出对应的行为)</li>
+</ul>
+<h3 id="概念"><a href="#概念" class="headerlink" title="概念"></a>概念</h3><ul>
+<li>kafka以集群运行，支持跨dc部署</li>
+<li>kafka集群分类存储流数据，叫做topic</li>
+<li>每条记录都包含key、value、timestamp</li>
+</ul>
+<p>kafaka有四大核心API</p>
+<ul>
+<li>Producer</li>
+<li>Consumer</li>
+<li>Stream(流数据处理)</li>
+<li>Connector(和现有系统的集成)</li>
+</ul>
+<p><img src="https://kafka.apache.org/10/images/kafka-apis.png" alt=""></p>
+<h3 id="Topics-and-Logs"><a href="#Topics-and-Logs" class="headerlink" title="Topics and Logs"></a>Topics and Logs</h3><p>一个topic包含多个partition，partition内部的数据是有序并且不可变的。向kafka写入数据，其实就是在向某个partition追加数据。kafka只保证<strong>单个partition内</strong>的数据是<strong>有序</strong>的!</p>
+<p><img src="https://kafka.apache.org/10/images/log_anatomy.png" alt=""></p>
+<p>而消费时，客户端其实就是在控制partition内部的指针。</p>
+<p><img src="https://kafka.apache.org/10/images/log_consumer.png" alt=""></p>
+<p>kafka会在一个可配置的周期内，保存所有消息(无论有没有被消费)</p>
+<h3 id="Distribution"><a href="#Distribution" class="headerlink" title="Distribution"></a>Distribution</h3><p>topic内的partitions会分布在多台server上，但partition本身不可再分。为了防止partition挂了丢失数据，partition本身也会有主从备份机制，leader处理所有读写，follower复制leader作为备份。</p>
+<p>在宏观上，每台物理服务器会包含多个不同topic的partition，其中一部分是leader partition，一部分是follower partition，通过这样来均衡集群内的负载</p>
+<h3 id="Geo-Replication"><a href="#Geo-Replication" class="headerlink" title="Geo-Replication"></a>Geo-Replication</h3><p>提供了跨dc的复制机制，我觉得99%的企业用不上这个特性。</p>
+<h3 id="Producers"><a href="#Producers" class="headerlink" title="Producers"></a>Producers</h3><p>负责向topic发送数据，它需要通过一些策略来选择topic内的某个partition进行写入，</p>
+<h3 id="Consumers"><a href="#Consumers" class="headerlink" title="Consumers"></a>Consumers</h3><p>kafka里的consumer有点特殊，它们会组成一个叫consumer group的概念，投递给topic的消息，最终会被订阅这个topic的consumer group中的某一个consumer消费。可以理解成，消息会被传递给consumer group，然后group内部通过某种策略选择具体的consumer处理。consumer可以分布于不同的进程或者机器上。</p>
+<p>如果订阅某个topic的所有consumer都属于同一个group，那么消息会被高效地负载均衡。</p>
+<p>如果订阅某个topic的所有consumer都属于不同的组，那么消息会被广播给所有的consumer</p>
+<p><img src="https://kafka.apache.org/10/images/consumer-groups.png" alt=""></p>
+<h3 id="Guarantees"><a href="#Guarantees" class="headerlink" title="Guarantees"></a>Guarantees</h3><p>kafka提供的保证有三点</p>
+<ul>
+<li>同一个producer向同一个partition发送的数据是有序的</li>
+<li>consumer看到的数据是有序的(即数据被存储的顺序)</li>
+<li>topic有N个备份，能保证在N-1个server当机时不丢失数据。</li>
+</ul>
+<h3 id="优势"><a href="#优势" class="headerlink" title="优势"></a>优势</h3><p>传统消息队列的queue和pub\sub模型，都有不足之处。</p>
+<p>queue不支持多个subsriber，某个subsriber读了数据，这个数据就没了</p>
+<p>pub\sub无法扩展处理能力，因为每个消息都会投递给所有subsriber</p>
+<p>kafka以consumer group作为订阅的单位，就解决了这两个模型的不足。</p>
+<p>kafka还是可靠又快速的存储系统，性能几乎不受数据量的影响。</p>
+<h3 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h3><p><a href="https://kafka.apache.org/intro#intro_multi-tenancy" target="_blank" rel="noopener">https://kafka.apache.org/intro#intro_multi-tenancy</a></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/kafka/">kafka</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+	<section id="comments" class="comment">
+	  <div id="disqus_thread">
+	  <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+	  </div>
+	</section>
+
+	<script type="text/javascript">
+	var disqus_shortname = 'moons-blog';
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/count.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	</script>
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+  </p>
+</footer>
+    
+  </div>
+</div>
+</body>
+</html>

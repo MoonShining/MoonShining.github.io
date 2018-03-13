@@ -57,11 +57,11 @@
   <nav class="site-navigation">
     <ul>
       
-        <li><a href="/">主页</a></li>
+        <li><a href="/">Home</a></li>
       
-        <li><a href="/archives">归档</a></li>
+        <li><a href="/archives">Archives</a></li>
       
-        <li><a href="/tags">标签</a></li>
+        <li><a href="/tags">Tags</a></li>
       
     </ul>
   </nav>
@@ -69,6 +69,118 @@
 
     <main class="site-main posts-loop">
     
+  <article>
+
+  
+    
+    <h3 class="article-title"><a href="/2018/03/13/kafka-introduce译文/"><span>kafka introduce</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/03/13/kafka-introduce译文/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-03-13T01:57:21.000Z">
+          2018-03-13
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>年前看过一遍kafka的文档，没想到现在忘得差不多了，于是结合自己的理解来写一篇译文。</p>
+<h3 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h3><p>kafka是一个分布式流处理平台</p>
+<p>有三个关键特性</p>
+<ul>
+<li>发布、订阅，类似消息队列</li>
+<li>错误容忍的持久化流数据</li>
+<li>处理流式数据</li>
+</ul>
+<p>kafka有两个比较大的应用场景</p>
+<ul>
+<li>构建实时流数据管道(偏向于数据传输)</li>
+<li>构建实时流数据处理(根据数据做出对应的行为)</li>
+</ul>
+<h3 id="概念"><a href="#概念" class="headerlink" title="概念"></a>概念</h3><ul>
+<li>kafka以集群运行，支持跨dc部署</li>
+<li>kafka集群分类存储流数据，叫做topic</li>
+<li>每条记录都包含key、value、timestamp</li>
+</ul>
+<p>kafaka有四大核心API</p>
+<ul>
+<li>Producer</li>
+<li>Consumer</li>
+<li>Stream(流数据处理)</li>
+<li>Connector(和现有系统的集成)</li>
+</ul>
+<p><img src="https://kafka.apache.org/10/images/kafka-apis.png" alt=""></p>
+<h3 id="Topics-and-Logs"><a href="#Topics-and-Logs" class="headerlink" title="Topics and Logs"></a>Topics and Logs</h3><p>一个topic包含多个partition，partition内部的数据是有序并且不可变的。向kafka写入数据，其实就是在向某个partition追加数据。kafka只保证<strong>单个partition内</strong>的数据是<strong>有序</strong>的!</p>
+<p><img src="https://kafka.apache.org/10/images/log_anatomy.png" alt=""></p>
+<p>而消费时，客户端其实就是在控制partition内部的指针。</p>
+<p><img src="https://kafka.apache.org/10/images/log_consumer.png" alt=""></p>
+<p>kafka会在一个可配置的周期内，保存所有消息(无论有没有被消费)</p>
+<h3 id="Distribution"><a href="#Distribution" class="headerlink" title="Distribution"></a>Distribution</h3><p>topic内的partitions会分布在多台server上，但partition本身不可再分。为了防止partition挂了丢失数据，partition本身也会有主从备份机制，leader处理所有读写，follower复制leader作为备份。</p>
+<p>在宏观上，每台物理服务器会包含多个不同topic的partition，其中一部分是leader partition，一部分是follower partition，通过这样来均衡集群内的负载</p>
+<h3 id="Geo-Replication"><a href="#Geo-Replication" class="headerlink" title="Geo-Replication"></a>Geo-Replication</h3><p>提供了跨dc的复制机制，我觉得99%的企业用不上这个特性。</p>
+<h3 id="Producers"><a href="#Producers" class="headerlink" title="Producers"></a>Producers</h3><p>负责向topic发送数据，它需要通过一些策略来选择topic内的某个partition进行写入，</p>
+<h3 id="Consumers"><a href="#Consumers" class="headerlink" title="Consumers"></a>Consumers</h3><p>kafka里的consumer有点特殊，它们会组成一个叫consumer group的概念，投递给topic的消息，最终会被订阅这个topic的consumer group中的某一个consumer消费。可以理解成，消息会被传递给consumer group，然后group内部通过某种策略选择具体的consumer处理。consumer可以分布于不同的进程或者机器上。</p>
+<p>如果订阅某个topic的所有consumer都属于同一个group，那么消息会被高效地负载均衡。</p>
+<p>如果订阅某个topic的所有consumer都属于不同的组，那么消息会被广播给所有的consumer</p>
+<p><img src="https://kafka.apache.org/10/images/consumer-groups.png" alt=""></p>
+<h3 id="Guarantees"><a href="#Guarantees" class="headerlink" title="Guarantees"></a>Guarantees</h3><p>kafka提供的保证有三点</p>
+<ul>
+<li>同一个producer向同一个partition发送的数据是有序的</li>
+<li>consumer看到的数据是有序的(即数据被存储的顺序)</li>
+<li>topic有N个备份，能保证在N-1个server当机时不丢失数据。</li>
+</ul>
+<h3 id="优势"><a href="#优势" class="headerlink" title="优势"></a>优势</h3><p>传统消息队列的queue和pub\sub模型，都有不足之处。</p>
+<p>queue不支持多个subsriber，某个subsriber读了数据，这个数据就没了</p>
+<p>pub\sub无法扩展处理能力，因为每个消息都会投递给所有subsriber</p>
+<p>kafka以consumer group作为订阅的单位，就解决了这两个模型的不足。</p>
+<p>kafka还是可靠又快速的存储系统，性能几乎不受数据量的影响。</p>
+<h3 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h3><p><a href="https://kafka.apache.org/intro#intro_multi-tenancy" target="_blank" rel="noopener">https://kafka.apache.org/intro#intro_multi-tenancy</a></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/kafka/">kafka</a>
+    </span>
+    
+
+    </div>
+
+    
+    <div class="article-meta pull-right">
+      <span>
+        <i class="icon-comments"></i>
+        <span>
+          <a href="/2018/03/13/kafka-introduce译文/#comment">Comments</a>
+        </span>
+      </span>
+    </div>
+    
+  </div>
+</article>
+
+
+
   <article>
 
   
@@ -148,7 +260,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2018/03/11/goim中的数据结构/#comment">评论</a>
+          <a href="/2018/03/11/goim中的数据结构/#comment">Comments</a>
         </span>
       </span>
     </div>
@@ -227,7 +339,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2018/03/09/goim-comet模块源码分析/#comment">评论</a>
+          <a href="/2018/03/09/goim-comet模块源码分析/#comment">Comments</a>
         </span>
       </span>
     </div>
@@ -307,7 +419,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2018/03/07/goim-router模块源码分析/#comment">评论</a>
+          <a href="/2018/03/07/goim-router模块源码分析/#comment">Comments</a>
         </span>
       </span>
     </div>
@@ -415,7 +527,7 @@
 
     <span class="post-tags">
       <i class="icon-tags"></i>
-        <a href="/tags/后端/">后端</a><a href="/tags/golang/">golang</a><a href="/tags/influxdb/">influxdb</a>
+        <a href="/tags/golang/">golang</a><a href="/tags/后端/">后端</a><a href="/tags/influxdb/">influxdb</a>
     </span>
     
 
@@ -426,7 +538,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2018/03/01/使用influxdb构建运营数据Metrics系统/#comment">评论</a>
+          <a href="/2018/03/01/使用influxdb构建运营数据Metrics系统/#comment">Comments</a>
         </span>
       </span>
     </div>
@@ -554,7 +666,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2018/02/25/linux服务管理-upstart/#comment">评论</a>
+          <a href="/2018/02/25/linux服务管理-upstart/#comment">Comments</a>
         </span>
       </span>
     </div>
@@ -632,7 +744,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2018/02/13/慢请求性能优化-300倍性能提升/#comment">评论</a>
+          <a href="/2018/02/13/慢请求性能优化-300倍性能提升/#comment">Comments</a>
         </span>
       </span>
     </div>
@@ -718,7 +830,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2018/02/07/也谈服务注册与发现/#comment">评论</a>
+          <a href="/2018/02/07/也谈服务注册与发现/#comment">Comments</a>
         </span>
       </span>
     </div>
@@ -806,7 +918,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2018/02/05/FishChatServer源码探究/#comment">评论</a>
+          <a href="/2018/02/05/FishChatServer源码探究/#comment">Comments</a>
         </span>
       </span>
     </div>
@@ -889,110 +1001,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2018/02/05/golang-tcp拆包的正确姿势/#comment">评论</a>
-        </span>
-      </span>
-    </div>
-    
-  </div>
-</article>
-
-
-
-  <article>
-
-  
-    
-    <h3 class="article-title"><a href="/2018/01/05/后端的一些经验与心得/"><span>后端一年(经验与心得)</span></a></h3>
-    
-  
-
-  <div class="article-top-meta">
-    <span class="posted-on">
-      <a href="/2018/01/05/后端的一些经验与心得/" rel="bookmark">
-        <time class="entry-date published" datetime="2018-01-05T01:54:10.000Z">
-          2018-01-05
-        </time>
-      </a>
-    </span>
-  </div>
-
-
-  
-
-  <div class="article-content">
-    <div class="entry">
-      
-        <p>先简单介绍一下我的经历，最早在学校的时候，是在社团里写php和Java，创业时期写js，oc和Ruby，现在是全职用Rails写后端了。</p>
-<h4 id="项目简介"><a href="#项目简介" class="headerlink" title="项目简介"></a>项目简介</h4><p>我们的主要业务有两块，社区和电商</p>
-<p>整体业务的峰值qps大概在3000，也算是pv过10亿的站点了，后端team有4个人，除了一个八年老司机，其他人参加工作的年限都不是太久。</p>
-<p>我们面对的是一个巨大的基于Rails的历史遗留系统，最早的开发成员均已离开，导致我们常常面对遗留代码一脸蒙逼，到处是没有人知道的逻辑，丑陋的实现，以及很多性能跟不上的接口。</p>
-<h4 id="与巨石应用的斗争"><a href="#与巨石应用的斗争" class="headerlink" title="与巨石应用的斗争"></a>与巨石应用的斗争</h4><p>日常工作的重中之重，就是与这个monolith的战斗！</p>
-<p><strong>性能篇</strong></p>
-<p>以往每年我们搞活动，服务器都会挂，经济损失不少，所以优化性能，保证活动期间的访问是第一要务。</p>
-<p>原来的活动整体设计还是比较科学的，活动页面本身是静态化的，主要瓶颈是商品详情页面。</p>
-<p>我们利用redis做了三层cache，解决了这个问题。第一层是数据库的缓存，直接把商品信息缓存到redis里，避免了频繁的数据库访问，第二层是单条数据的渲染缓存，可以理解成一小段html，第三层是整个数据集的渲染缓存。</p>
-<p>第二个瓶颈出现在一些静态资源上，全面迁移到云存储解决。做完这两件事之后，上上次活动是我们有史以来第一次，没有挂。</p>
-<p>就在我们觉得，优化做的不错的时候，上次活动却又挂了。</p>
-<p>要知道我们特意买了新服务器，美滋滋觉得这下稳了，没想到…</p>
-<p>上次活动挂的原因有以下几点</p>
-<ol>
-<li>redis hmget，我们通过gem提供的API，缓存了一个巨大的省市区列表，但是没有注意到缓存是分离的，获取整个列表，其实就是一条hmget获取所有独立的缓存片段，这个操作block了redis，导致访问极度缓慢。我们紧急把整个列表转成json，直接贴到代码里返回hotfix了这个问题</li>
-<li>突然无法通过redis sential进行连接，这套sential系统是由已经离职的运维搭建的，我们绕开sential直接连接redis，解决了这个问题</li>
-<li>fd limit,发现依然是1024，修改后却依然时常502，发现运维修改的是root用户的fd数量…坑爹！</li>
-<li>在支付回调中有一段用于统计的sql，订单量大了以后slow query，block了数据库，我们直接注释了这段可有可无的老代码，解决。</li>
-</ol>
-<p>总结一下，对于web应用的场景来说，大都是读多写少，缓存读请求，异步写请求，是我们经常采用的两种效果不错的方式。在数据库层面，对于遗留代码中效率低下的查询进行重写，重点改写了所有N＋1查询，对一些逐条插入的语句用batch insert合并写入操作，也有不错的提升。</p>
-<p><strong>替换篇</strong></p>
-<p>做的比较有意思的事，是写了我们内部用的个推GEM。原来使用的是github上开源的一个GEM，但是已经很久没更新了，无法适应我们的使用需求。我基于个推最新的HTTPS的API，写了一个Ruby的包装。</p>
-<p>这里要吐槽的是个推的技术水平。推送服务是做的不错，但API怎么做的这么low。他们定义了一个叫authorize的http header用来传递身份信息…违背了RFC关于HTTP头必须大写开头的规范。一些语言的标准库(Go、Ruby…)会自动帮你把authorize转化成Authorize，导致个推那边一直返回auth error…而个推的接口又是HTTPS的，抓包调试很困难，浪费了我很长时间调试这个问题。</p>
-<p><strong>重构篇</strong><br>重构的主要方针就是拆分，尽可能把功能从巨石应用中拆出去。如果一时半会难以拆分的，代码上也尽可能让逻辑高度内聚，方便以后迁移。</p>
-<p>消息系统的重构<br>消息系统是一个，出点问题没什么，但做得好会非常出彩的功能。我一直觉得，像知乎这种社区的成功，除了内容，很大一部分要归功于消息的体验。目前，我们几乎所有页面，都会展示新消息的数量，导致每次请求都会去主数据库的消息表做count，计算各种消息的数量返回给前端。我正在着手把整个系统迁移到另一个独立的数据库，以后可以作为单独的服务供内部调用，降级限流什么的都很方便。</p>
-<p>搜索的重构</p>
-<p>原来的搜索是基于Solr的java工程，是一个我们内部没人维护好多年的烂摊子，虽然各方面表现都不错。我们使用了用Elasticsearch替换掉了。</p>
-<p><strong>新系统</strong><br>我新写了内部的财务系统，过程中遇到很多问题，写的也很痛苦，但最终效果还是不错。因为原来的各种报表都是直接基于生产数据库的，对业务会有冲击，新系统写了一个同步模块，可以增量同步订单数据到财务系统的专用数据库，这样就不会对业务带来影响。</p>
-<p>遇到的比较大的坑就是内存爆炸。有一些耗时计算我放到了消息对列里，整个worker进程的内存占用疯狂上升。最终发现是Ruby内存模型的特点，分配大量对象，却不进行回收。需要你使用batch处理的方式，切成一小块一小块的数据，一次处理一小块，这样下次计算的时候就可以重用之前申请的那些对象。</p>
-<p>另外也通过时间换空间的方式，把加载全部数据做计算，改成了加载部分数据做计算，然后汇总结果这样的方式，极大降低了内存占用，并每天重启worker进程，解决了最主要的内存问题(1G内存的机器…)。</p>
-<p>这个项目让我真实感觉到，有些场景真的不是Ruby擅长的领域。Ruby的内存模型，就是尽量分配对象，从不真正回收，只会重用。Ruby VM启动就有大量空对象等着被分配，假如我加载了很多数据，空对象不够用了，VM就向操作系统申请一批内存，用完后也不释放，等着下次重用。而报表计算的最佳场景就是能加载大量数据，算一下结果，算完释放掉内存。</p>
-<p><strong>监控</strong><br>可以看我之前的文章<a href="http://www.jianshu.com/p/69ce51cfcb3d" target="_blank" rel="noopener">使用ELK构建分布式日志分析系统</a></p>
-<p><strong>代码篇</strong><br>在日常编码、重构的过程中，经常使用的技术是</p>
-<ol>
-<li>设计模式</li>
-<li>元编程</li>
-<li>自动化测试</li>
-</ol>
-<p>运用设计模式，写出符合OOP规范的代码。分割每个类的职责，尽量让各个功能的逻辑内聚，只提供彼此间调用的接口，这是我最近才刚领悟的代码整洁之道。</p>
-<p>元编程抽象代码，我很早就在使用的奇技淫巧。现在却用的越来越少了，因为它违背了OOP，可维护性比较差，对使用者的水平有很大要求，也容易<strong>坑队友</strong>。</p>
-<p>简单地说，我代码中的if/else越来越少了，类越来越多了，改动起来越来方便了，改动影响的部分越来少了，美滋滋。</p>
-<h4 id="结语"><a href="#结语" class="headerlink" title="结语"></a>结语</h4><p>用一句古老的名言，软件开发没有银弹。</p>
-
-      
-    </div>
-
-  </div>
-
-  <div class="article-footer">
-    <div class="article-meta pull-left">
-
-    
-
-    
-    
-
-    <span class="post-tags">
-      <i class="icon-tags"></i>
-        <a href="/tags/后端/">后端</a>
-    </span>
-    
-
-    </div>
-
-    
-    <div class="article-meta pull-right">
-      <span>
-        <i class="icon-comments"></i>
-        <span>
-          <a href="/2018/01/05/后端的一些经验与心得/#comment">评论</a>
+          <a href="/2018/02/05/golang-tcp拆包的正确姿势/#comment">Comments</a>
         </span>
       </span>
     </div>
@@ -1006,7 +1015,7 @@
 <nav class="pagination">
   
   
-  <a href="/page/2/" class="pagination-next">下一页</a>
+  <a href="/page/2/" class="pagination-next">Next</a>
   
 </nav>
     </main>
