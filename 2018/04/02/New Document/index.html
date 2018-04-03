@@ -1,0 +1,186 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>Moon&#39;s blog | write the code, change the world.</title>
+
+  
+  <meta name="author" content="Moon">
+  
+
+  
+  <meta name="description" content="Ruby\Golang">
+  
+
+  
+  
+  <meta name="keywords" content="">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  
+
+  <meta property="og:site_name" content="Moon&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="Moon&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+
+  <script>
+  var _hmt = _hmt || [];
+  (function() {
+    var hm = document.createElement("script");
+    hm.src = "https://hm.baidu.com/hm.js?a9ab16fc25a6e74e9e3521e7ad3782e8";
+    var s = document.getElementsByTagName("script")[0]; 
+    s.parentNode.insertBefore(hm, s);
+  })();
+  </script>
+</head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">Moon&#39;s blog</a>
+    </h1>
+    <p class="site-description">write the code, change the world.</p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">Home</a></li>
+      
+        <li><a href="/archives">Archives</a></li>
+      
+        <li><a href="/tags">Tags</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span></span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/04/02/New Document/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-04-02T06:56:52.926Z">
+          2018-04-02
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <h3 id="数据库设计"><a href="#数据库设计" class="headerlink" title="数据库设计"></a>数据库设计</h3><p>三张表，scores和score_histories，score_task_status</p>
+<ul>
+<li>scores缓存用户当前积分、经验</li>
+<li>score_histories是积分的详细历史</li>
+<li>score_task_status缓存了用户每天任务的完成情况</li>
+</ul>
+<h3 id="核心流程"><a href="#核心流程" class="headerlink" title="核心流程"></a>核心流程</h3><ol>
+<li>调用score.push_task，TaskFactory会根据参数生成对应的任务对象</li>
+<li>任务对象负责判断任务是否可以执行，计算获得的积分和经验，并执行任务</li>
+<li>核心就是ScoreSystem::Task::Base里的perform_now方法，perform_later只是把任务对象丢进队列，然后job中重新实例化该对象，并执行perform_now</li>
+</ol>
+<h3 id="ScoreSystem-Task-Base-任务的基类"><a href="#ScoreSystem-Task-Base-任务的基类" class="headerlink" title="ScoreSystem::Task::Base 任务的基类"></a>ScoreSystem::Task::Base 任务的基类</h3><ul>
+<li>有些任务是一次性的，例如绑定手机，使用can_do_once?判断</li>
+<li>有些任务是每天可重复的，例如发长文章，但是有一个次数上限，使用did_times统计</li>
+<li>多数任务都受到每天获取积分上限(50)的约束，使用with_grade_limit检查</li>
+<li>compute_with_limit，保证每天获得的分数不会超过50</li>
+</ul>
+<p>任务子类需要实现两个接口can_do?和compute，即任务是否可以执行和获得的积分、经验，这里大量使用了Base提供的辅助方法</p>
+<h3 id="积分和经验的计算"><a href="#积分和经验的计算" class="headerlink" title="积分和经验的计算"></a>积分和经验的计算</h3><p>每次更新都会根据score_histories里的内容进行sum运算，其中等级是动态计算的，可以理解成经验值=&gt;等级的映射关系</p>
+<h3 id="代码结构"><a href="#代码结构" class="headerlink" title="代码结构"></a>代码结构</h3><p>app/scores/score_system</p>
+<ul>
+<li>job/update_score_job 异步做任务</li>
+<li>task/* 各种任务</li>
+<li>mixin 混入account中提供一些便捷的方法</li>
+<li>task_factory 任务的工厂</li>
+<li>task_meta 任务的元数据，用于前端展示</li>
+<li><h4 id="命名约定"><a href="#命名约定" class="headerlink" title="命名约定"></a>命名约定</h4></li>
+</ul>
+<p>push_task(‘abc_task’) 会交给 AbcTask.rb处理</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+	<section id="comments" class="comment">
+	  <div id="disqus_thread">
+	  <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+	  </div>
+	</section>
+
+	<script type="text/javascript">
+	var disqus_shortname = 'moons-blog';
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/count.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	</script>
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+  </p>
+</footer>
+    
+  </div>
+</div>
+</body>
+</html>

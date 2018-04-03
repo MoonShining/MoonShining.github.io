@@ -1,0 +1,205 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>awk like a boss! | Moon&#39;s blog | write the code, change the world.</title>
+
+  
+  <meta name="author" content="Moon">
+  
+
+  
+  <meta name="description" content="Ruby\Golang">
+  
+
+  
+  
+  <meta name="keywords" content="awk,linux">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="awk like a boss!"/>
+
+  <meta property="og:site_name" content="Moon&#39;s blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="Moon&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+
+  <script>
+  var _hmt = _hmt || [];
+  (function() {
+    var hm = document.createElement("script");
+    hm.src = "https://hm.baidu.com/hm.js?a9ab16fc25a6e74e9e3521e7ad3782e8";
+    var s = document.getElementsByTagName("script")[0]; 
+    s.parentNode.insertBefore(hm, s);
+  })();
+  </script>
+</head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">Moon&#39;s blog</a>
+    </h1>
+    <p class="site-description">write the code, change the world.</p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">Home</a></li>
+      
+        <li><a href="/archives">Archives</a></li>
+      
+        <li><a href="/tags">Tags</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>awk like a boss!</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/04/03/awk-like-a-boss/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-04-03T04:34:38.000Z">
+          2018-04-03
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>linux提供了很多文本处理的屠龙刀，awk就是其中的佼佼者，称为一门面向文本的编程语言也不为过(awk中可以定义变量、进行运算，处理分支条件等等)。</p>
+<p>如果早点学会awk，财务系统就不会写的这么费劲了，直接导出一份csv，写写awk脚本就好。</p>
+<h3 id="执行流程"><a href="#执行流程" class="headerlink" title="执行流程"></a>执行流程</h3><p>完整的awd命令，可以由BEGIN BODY END三部分组成，其中BEGIN和END只会在awk执行前后运行一次，而BODY部分会每行不断处理。</p>
+<p><img src="http://7xqlni.com1.z0.glb.clouddn.com/QQ截图20180403123540.png" alt="QQ截图20180403123540.png"></p>
+<h3 id="Example"><a href="#Example" class="headerlink" title="Example"></a>Example</h3><p>下面是几个几个awk的例子</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 只有 body 区域:</span></span><br><span class="line">awk -F: <span class="string">'&#123;print $1&#125;'</span> /etc/passwd</span><br><span class="line"></span><br><span class="line"><span class="comment"># 同时具有 begin,body 和 end 区域:</span></span><br><span class="line">awk –F: <span class="string">'BEGIN&#123;printf "username\n-------\n"&#125;\</span></span><br><span class="line"><span class="string">&#123; print $1 &#125;\</span></span><br><span class="line"><span class="string">END &#123;print "----------" &#125;'</span> /etc/passwd</span><br><span class="line"></span><br><span class="line"><span class="comment"># 只有 begin 和 body 区域:</span></span><br><span class="line">awk –F: <span class="string">'BEGIN &#123;print "UID"&#125; &#123;print $3&#125;'</span> /etc/passwd</span><br></pre></td></tr></table></figure>
+<p>我们以<code>awk -F: &#39;{print $1}&#39; /etc/passwd</code>为例来看分析一下</p>
+<ol>
+<li>-F:指定了以：作为分隔符</li>
+<li>‘{ print $1 }’ 表示输出第一个</li>
+<li>/etc/passwd是输入的文件</li>
+</ol>
+<p>这个命令会输出</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">root</span><br><span class="line">daemon</span><br><span class="line">bin</span><br><span class="line">sys</span><br><span class="line">sync</span><br><span class="line">games</span><br><span class="line">man</span><br><span class="line">lp</span><br><span class="line">mail</span><br><span class="line">news</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+<h3 id="指定分隔符"><a href="#指定分隔符" class="headerlink" title="指定分隔符"></a>指定分隔符</h3><p>默认的输入分隔符是空格，可以通过-F选项来指定<strong>输入字段分隔符</strong>，例如</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">awk -F: <span class="string">'&#123;print $2&#125;'</span> /etc/passwd</span><br><span class="line"></span><br><span class="line">awk -F, <span class="string">'&#123;print $2&#125;'</span> example.csv</span><br></pre></td></tr></table></figure>
+<p>也可以通过设置OFS变量来指定<strong>输出字段分隔符</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">awk -F, <span class="string">'BEGIN &#123;OFS=":"&#125; &#123;print $2, $3&#125;'</span> employee.txt</span><br></pre></td></tr></table></figure>
+<p>当一行容纳了多组数据时，awk允许你指定数据之间的分隔符，<strong>输入记录分隔符</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">awk -F, <span class="string">'BEGIN &#123; RS=":" &#125; &#123;print $2&#125;'</span> employee-one-line.txt</span><br></pre></td></tr></table></figure>
+<p>在输出时，记录直接允许指定<strong>输出记录分隔符</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">awk &apos;BEGIN &#123;FS=&quot;,&quot;;ORS=&quot;\n---\n&quot;&#125; &#123;print $2,$3&#125;&apos; employee.txt</span><br></pre></td></tr></table></figure>
+<p>$1、$2这样的变量代表分割后的字符串数组中的位置， $0代表整行</p>
+<h3 id="Pattern-Maching"><a href="#Pattern-Maching" class="headerlink" title="Pattern Maching"></a>Pattern Maching</h3><p>当然，我们可以只处理一行中的某些部分，通过正则实现</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># employee.txt</span></span><br><span class="line"><span class="comment"># Jason Smith IT Manager</span></span><br><span class="line"><span class="comment"># Jane Miller Sales Manager</span></span><br><span class="line"><span class="comment"># vagrant@z:~/awk$ cat employee.txt</span></span><br><span class="line"><span class="comment"># 101,John Doe,CEO</span></span><br><span class="line"><span class="comment"># 102,Jason Smith,IT Manager</span></span><br><span class="line"><span class="comment"># 103,Raj Reddy,Sysadmin</span></span><br><span class="line"><span class="comment"># 104,Anand Ram,Developer</span></span><br><span class="line"><span class="comment"># 105,Jane Miller,Sales Manager</span></span><br><span class="line"></span><br><span class="line">awk -F, <span class="string">'/Manager/ &#123;print $2, $3&#125;'</span> employee.txt</span><br></pre></td></tr></table></figure>
+<h3 id="awk变量、运算"><a href="#awk变量、运算" class="headerlink" title="awk变量、运算"></a>awk变量、运算</h3><p>一旦涉及变量定义这种比较复杂的功能，我就偏向于写awk脚本，然后<code>awk -f xx.awk somefile</code>这样来执行，常见的数学操作(+-*/%，++ –)都支持。</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">BEGIN &#123;</span><br><span class="line">        FS=<span class="string">","</span>;</span><br><span class="line">        total=0;</span><br><span class="line">&#125;</span><br><span class="line">&#123;</span><br><span class="line">        <span class="built_in">print</span> <span class="variable">$2</span> <span class="string">"'s salary is: "</span> <span class="variable">$4</span>;</span><br><span class="line">        total+=<span class="variable">$4</span>;</span><br><span class="line">&#125;</span><br><span class="line">END &#123;</span><br><span class="line">        <span class="built_in">print</span> <span class="string">"----\nTotal Company Salary=$"</span> total;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="awk比较"><a href="#awk比较" class="headerlink" title="awk比较"></a>awk比较</h3><p>awk支持以下比较</p>
+<p><img src="http://7xqlni.com1.z0.glb.clouddn.com/QQ截图20180403134602.png" alt="QQ截图20180403134602.png"></p>
+<p>可以理解成sql中的where条件<br><figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">awk -F, <span class="string">'$5&lt;=5'</span> items.txt</span><br><span class="line">awk -F <span class="string">","</span> <span class="string">'$4 &lt; 900 || $5 &lt;= 5'</span> items.txt</span><br><span class="line">awk -F <span class="string">':'</span> <span class="string">'$3 &gt; maxuid &#123; maxuid = $3; maxline = $0 &#125; END &#123; print maxuid,maxline &#125;'</span> /etc/passwd</span><br><span class="line">awk -F <span class="string">':'</span> <span class="string">'$3 &gt;= 100 &amp;&amp; $NF ~ /\/bin\/sh/ '</span> /etc/passwd <span class="comment"># $NF 代表最后一列， ~表示正则匹配， !~也就是不匹配咯</span></span><br></pre></td></tr></table></figure></p>
+<h3 id="awk控制流"><a href="#awk控制流" class="headerlink" title="awk控制流"></a>awk控制流</h3><p>awk支持if,if\else,while、do-while都常见控制流，for(;;)当然也不在话下，连break、continue、exit都有哦。</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">cat dowhile.awk</span><br><span class="line"></span><br><span class="line">&#123;</span><br><span class="line"> i=2;</span><br><span class="line"> total=0;</span><br><span class="line"> <span class="keyword">do</span> &#123;</span><br><span class="line"> total = total + <span class="variable">$i</span>;</span><br><span class="line"> i++;</span><br><span class="line"> &#125;</span><br><span class="line"> <span class="keyword">while</span>(i&lt;=NF)</span><br><span class="line"><span class="built_in">print</span> <span class="string">"Item"</span>,<span class="variable">$1</span>,<span class="string">":"</span>,total,<span class="string">"quantities sold"</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">echo</span> <span class="string">"1 2 3 4"</span> | awk <span class="string">'&#123; for (i=1;i&lt;=NF;i++) total = total + $i &#125; END &#123; print total &#125;'</span></span><br></pre></td></tr></table></figure>
+<h3 id="awk关联数组"><a href="#awk关联数组" class="headerlink" title="awk关联数组"></a>awk关联数组</h3><p>没错，这个就是lua中的关联数组的概念</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">$ cat array-assign.awk</span><br><span class="line">BEGIN &#123;</span><br><span class="line"> item[101]=<span class="string">"HD Camcorder"</span>;</span><br><span class="line"> item[102]=<span class="string">"Refrigerator"</span>;</span><br><span class="line"> item[103]=<span class="string">"MP3 Player"</span>;</span><br><span class="line"> item[104]=<span class="string">"Tennis Racket"</span>;</span><br><span class="line"> item[105]=<span class="string">"Laser Printer"</span>;</span><br><span class="line"> item[1001]=<span class="string">"Tennis Ball"</span>;</span><br><span class="line"> item[55]=<span class="string">"Laptop"</span>;</span><br><span class="line"> item[<span class="string">"na"</span>]=<span class="string">"Not Available"</span>;</span><br><span class="line"> <span class="built_in">print</span> item[<span class="string">"101"</span>];</span><br><span class="line"> <span class="built_in">print</span> item[102];</span><br><span class="line"> <span class="built_in">print</span> item[<span class="string">"103"</span>];</span><br><span class="line"> <span class="built_in">print</span> item[104];</span><br><span class="line"> <span class="built_in">print</span> item[<span class="string">"105"</span>];</span><br><span class="line"> <span class="built_in">print</span> item[1001];</span><br><span class="line"> <span class="built_in">print</span> item[<span class="string">"na"</span>];</span><br><span class="line">&#125;</span><br><span class="line">$ awk -f array-assign.awk</span><br><span class="line">HD Camcorder</span><br><span class="line">Refrigerator</span><br><span class="line">MP3 Player</span><br><span class="line">Tennis Racket</span><br><span class="line">Laser Printer</span><br><span class="line">Tennis Ball</span><br><span class="line">Not Available</span><br></pre></td></tr></table></figure>
+<p>数组遍历</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">$ cat array-for-loop.awk</span><br><span class="line">BEGIN &#123;</span><br><span class="line"> item[101]=<span class="string">"HD Camcorder"</span>;</span><br><span class="line"> item[102]=<span class="string">"Refrigerator"</span>;</span><br><span class="line"> item[103]=<span class="string">"MP3 Player"</span>;</span><br><span class="line"> item[104]=<span class="string">"Tennis Racket"</span>;</span><br><span class="line"> item[105]=<span class="string">"Laser Printer"</span>;</span><br><span class="line"> item[1001]=<span class="string">"Tennis Ball"</span>;</span><br><span class="line"> item[55]=<span class="string">"Laptop"</span>;</span><br><span class="line"> item[<span class="string">"no"</span>]=<span class="string">"Not Available"</span>;</span><br><span class="line"> <span class="keyword">for</span>(x <span class="keyword">in</span> item)</span><br><span class="line"> <span class="built_in">print</span> item[x]</span><br><span class="line">&#125;</span><br><span class="line">$ awk -f array-for-loop.awk</span><br><span class="line">Not Available</span><br><span class="line">Laptop</span><br><span class="line">HD Camcorder</span><br><span class="line">Refrigerator</span><br><span class="line">MP3 Player</span><br><span class="line">Tennis Racket</span><br><span class="line">Laser Printer</span><br><span class="line">Tennis Ball</span><br></pre></td></tr></table></figure>
+<p>数组删除</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">$ cat array-delete.awk</span><br><span class="line">BEGIN &#123;</span><br><span class="line"> item[101]=<span class="string">"HD Camcorder"</span>;</span><br><span class="line"> item[102]=<span class="string">"Refrigerator"</span>;</span><br><span class="line"> item[103]=<span class="string">"MP3 Player"</span>;</span><br><span class="line"> item[104]=<span class="string">"Tennis Racket"</span>;</span><br><span class="line"> item[105]=<span class="string">"Laser Printer"</span>;</span><br><span class="line"> item[1001]=<span class="string">"Tennis Ball"</span>;</span><br><span class="line"> item[55]=<span class="string">"Laptop"</span>;</span><br><span class="line"> item[<span class="string">"no"</span>]=<span class="string">"Not Available"</span>;</span><br><span class="line"> delete item[102]</span><br><span class="line"> item[103]=<span class="string">""</span></span><br><span class="line"> delete item[104]</span><br><span class="line"> delete item[1001]</span><br><span class="line"> delete item[<span class="string">"na"</span>]</span><br><span class="line"> <span class="keyword">for</span>(x <span class="keyword">in</span> item)</span><br><span class="line"> <span class="built_in">print</span> <span class="string">"Index"</span>,x,<span class="string">"contains"</span>,item[x]</span><br><span class="line">&#125;</span><br><span class="line">$ awk -f array-delete.awk</span><br><span class="line">Index no contains Not Available</span><br><span class="line">Index 55 contains Laptop</span><br><span class="line">Index 101 contains HD Camcorder</span><br><span class="line">Index 103 contains</span><br><span class="line">Index 105 contains Laser Printer</span><br></pre></td></tr></table></figure>
+<p>awk支持的功能还有很多，这里不一一介绍，总之，凡是文本数据处理，用awk就没错了！</p>
+<h3 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h3><p><a href="https://www.thegeekstuff.com/sed-awk-101-hacks-ebook/" target="_blank" rel="noopener">https://www.thegeekstuff.com/sed-awk-101-hacks-ebook/</a></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/awk/">awk</a><a href="/tags/linux/">linux</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+	<section id="comments" class="comment">
+	  <div id="disqus_thread">
+	  <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+	  </div>
+	</section>
+
+	<script type="text/javascript">
+	var disqus_shortname = 'moons-blog';
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/count.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	</script>
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+  </p>
+</footer>
+    
+  </div>
+</div>
+</body>
+</html>
