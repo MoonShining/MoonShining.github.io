@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   
-  <title>Page 2 | Moon&#39;s blog | write the code, change the world.</title>
+  <title>第 2 页 | Moon&#39;s blog | write the code, change the world.</title>
 
   
   <meta name="author" content="Moon">
@@ -57,11 +57,11 @@
   <nav class="site-navigation">
     <ul>
       
-        <li><a href="/">Home</a></li>
+        <li><a href="/">主页</a></li>
       
-        <li><a href="/archives">Archives</a></li>
+        <li><a href="/archives">归档</a></li>
       
-        <li><a href="/tags">Tags</a></li>
+        <li><a href="/tags">标签</a></li>
       
     </ul>
   </nav>
@@ -69,6 +69,94 @@
 
     <main class="site-main posts-loop">
     
+  <article>
+
+  
+    
+    <h3 class="article-title"><a href="/2018/02/05/FishChatServer源码探究/"><span>FishChatServer源码探究</span></a></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/2018/02/05/FishChatServer源码探究/" rel="bookmark">
+        <time class="entry-date published" datetime="2018-02-05T09:53:02.000Z">
+          2018-02-05
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>在写im-go的过程中遇到了一些设计上的问题，于是想找目前有的开源im服务的源码看看。<a href="https://github.com/oikomi/FishChatServer2" target="_blank" rel="noopener">FishChatServer2</a>在一些模块设计上和我的思路很相似，有种英雄所见略同的快感，所以选了它(FishChatServer2的拆包方式和我<a href="https://moonshining.github.io/blog/2018/02/05/golang-tcp%E6%8B%86%E5%8C%85%E7%9A%84%E6%AD%A3%E7%A1%AE%E5%A7%BF%E5%8A%BF">上一篇文章</a>中提到的使用<code>ReadFull</code>的方式是一样的，并且连模块名字都一样叫Codec)</p>
+<p>主要看了libnet和server两个模块</p>
+<p>libnet, 是所有server的基础公共库，封装了诸如Listen Accept之类的调用<br><img src="http://7xqlni.com1.z0.glb.clouddn.com/libnet.png" alt=""></p>
+<p>server, 具体的服务，看了一下gateway和access两个服务的实现<br><img src="http://7xqlni.com1.z0.glb.clouddn.com/server.png" alt=""></p>
+<hr>
+<h3 id="gateway服务"><a href="#gateway服务" class="headerlink" title="gateway服务"></a>gateway服务</h3><p><strong>gateway.go</strong>是gateway服务的入口，其实是一个access服务的负载均衡器，核心代码如下</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 初始化对象</span></span><br><span class="line">gwServer := server.New() </span><br><span class="line"><span class="comment">// codec编码、解码器</span></span><br><span class="line">protobuf := codec.Protobuf() </span><br><span class="line"><span class="comment">// 使用libnet封装的api进行Listen</span></span><br><span class="line"><span class="keyword">if</span> gwServer.Server, err = libnet.Serve(conf.Conf.Server.Proto, conf.Conf.Server.Addr, protobuf, <span class="number">0</span>); err != <span class="literal">nil</span> &#123;</span><br><span class="line">    glog.Error(err)</span><br><span class="line">    <span class="built_in">panic</span>(err)</span><br><span class="line">&#125; </span><br><span class="line"><span class="comment">// 通过etcd进行服务发现，每5秒向etcd请求一个access服务器列表，并写入AccessServerList 这个变量中</span></span><br><span class="line"><span class="keyword">go</span> job.ConfDiscoveryProc() </span><br><span class="line">gwServer.Loop() <span class="comment">// 开始不断循环处理请求</span></span><br></pre></td></tr></table></figure>
+<p><code>gwServer.Loop()</code>的核心代码在<strong>server.go</strong>中</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *Server)</span> <span class="title">sessionLoop</span><span class="params">(client *client.Client)</span></span> &#123;</span><br><span class="line">    <span class="keyword">for</span> &#123;</span><br><span class="line">        <span class="comment">//读一个包</span></span><br><span class="line">        reqData, err := client.Session.Receive() </span><br><span class="line">        <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">            glog.Error(err)</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> reqData != <span class="literal">nil</span> &#123;</span><br><span class="line">            baseCMD := &amp;external.Base&#123;&#125;</span><br><span class="line">            <span class="comment">// protobuf 反序列化</span></span><br><span class="line">            <span class="keyword">if</span> err = proto.Unmarshal(reqData, baseCMD); err != <span class="literal">nil</span> &#123;</span><br><span class="line">                <span class="keyword">if</span> err = client.Session.Send(&amp;external.Error&#123;</span><br><span class="line">                    Cmd:     external.ErrServerCMD,</span><br><span class="line">                    ErrCode: ecode.ServerErr.Uint32(),</span><br><span class="line">                    ErrStr:  ecode.ServerErr.String(),</span><br><span class="line">                &#125;); err != <span class="literal">nil</span> &#123;</span><br><span class="line">                    glog.Error(err)</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">continue</span></span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">// client.Parse方法有一点迷惑性，client.Parse 其实做了解析命令，并执行命令的工作</span></span><br><span class="line">            <span class="keyword">if</span> err = client.Parse(baseCMD.Cmd, reqData); err != <span class="literal">nil</span> &#123;</span><br><span class="line">                glog.Error(err)</span><br><span class="line">                <span class="keyword">continue</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *Server)</span> <span class="title">Loop</span><span class="params">()</span></span> &#123;</span><br><span class="line">    glog.Info(<span class="string">"loop"</span>)</span><br><span class="line">    <span class="keyword">for</span> &#123;</span><br><span class="line">        <span class="comment">// 获取libnet封装的session对象</span></span><br><span class="line">        session, err := s.Server.Accept() </span><br><span class="line">        <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">            glog.Error(err)</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 生成client对象，里面封装了gateway服务的业务逻辑</span></span><br><span class="line">        <span class="keyword">go</span> s.sessionLoop(client.New(session)) </span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>client.Parse最终调用了<strong>proto_proc.go</strong>里的<strong>client.procReqAccessServer</strong>来执行业务逻辑<br><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *Client)</span> <span class="title">procReqAccessServer</span><span class="params">(reqData []<span class="keyword">byte</span>)</span> <span class="params">(err error)</span></span> &#123;</span><br><span class="line">    <span class="keyword">var</span> addr <span class="keyword">string</span></span><br><span class="line">    <span class="keyword">var</span> accessServerList []<span class="keyword">string</span></span><br><span class="line">    <span class="comment">// 从之前提到的access服务地址数组中获取一个可用的access服务</span></span><br><span class="line">    <span class="comment">// 没有看懂为什么要做一次额外的复制数组的操作？</span></span><br><span class="line">    <span class="keyword">for</span> _, v := <span class="keyword">range</span> job.AccessServerList &#123;</span><br><span class="line">        accessServerList = <span class="built_in">append</span>(accessServerList, v.IP)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 处理错误情况</span></span><br><span class="line">    <span class="keyword">if</span> <span class="built_in">len</span>(accessServerList) == <span class="number">0</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> err = c.Session.Send(&amp;external.ResSelectAccessServerForClient&#123;</span><br><span class="line">            Cmd:     external.ReqAccessServerCMD,</span><br><span class="line">            ErrCode: ecode.NoAccessServer.Uint32(),</span><br><span class="line">            ErrStr:  ecode.NoAccessServer.String(),</span><br><span class="line">        &#125;); err != <span class="literal">nil</span> &#123;</span><br><span class="line">            glog.Error(err)</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 返回一个可用地址</span></span><br><span class="line">    addr = accessServerList[rand.Intn(<span class="built_in">len</span>(accessServerList))]</span><br><span class="line">    <span class="keyword">if</span> err = c.Session.Send(&amp;external.ResSelectAccessServerForClient&#123;</span><br><span class="line">        Cmd:     external.ReqAccessServerCMD,</span><br><span class="line">        ErrCode: ecode.OK.Uint32(),</span><br><span class="line">        ErrStr:  ecode.OK.String(),</span><br><span class="line">        Addr:    addr,</span><br><span class="line">    &#125;); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        glog.Error(err)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>到此一次请求就结束了，可用看出代码的结构上非常清晰，很容易就能理解。</p>
+<hr>
+<h3 id="libnet"><a href="#libnet" class="headerlink" title="libnet"></a>libnet</h3><p>这个模块帮我们屏蔽了大量繁琐的网络细节，接下来就要看一下它的实现了。</p>
+<p>从<strong>api.go</strong>入手，这里定义了对外的接口</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Protocol <span class="keyword">interface</span> &#123; </span><br><span class="line">    <span class="comment">// Codec 负责通信协议的解析，封装了读写数据的方法</span></span><br><span class="line">    NewCodec(rw io.ReadWriter) Codec </span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> Codec <span class="keyword">interface</span> &#123;</span><br><span class="line">    Receive() ([]<span class="keyword">byte</span>, error)</span><br><span class="line">    Send(<span class="keyword">interface</span>&#123;&#125;) error</span><br><span class="line">    Close() error</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Serve</span><span class="params">(network, address <span class="keyword">string</span>, protocol Protocol, sendChanSize <span class="keyword">int</span>)</span> <span class="params">(*Server, error)</span></span> &#123;</span><br><span class="line">    listener, err := net.Listen(network, address) <span class="comment">// 终于看到标准库里的东西了</span></span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">nil</span>, err</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// listener用于Accept， protocol用户处理net.Conn, sendChanSize看上去好像是用来控制发送速率的，不过没有明白为什么需要控制?</span></span><br><span class="line">    <span class="keyword">return</span> NewServer(listener, protocol, sendChanSize), <span class="literal">nil</span> </span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 客户端连接+带超时的连接</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Connect</span><span class="params">(network, address <span class="keyword">string</span>, protocol Protocol, sendChanSize <span class="keyword">int</span>)</span> <span class="params">(*Session, error)</span></span> &#123;</span><br><span class="line">    conn, err := net.Dial(network, address)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">nil</span>, err</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> NewSession(protocol.NewCodec(conn), sendChanSize), <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">ConnectTimeout</span><span class="params">(network, address <span class="keyword">string</span>, timeout time.Duration, protocol Protocol, sendChanSize <span class="keyword">int</span>)</span> <span class="params">(*Session, error)</span></span> &#123;</span><br><span class="line">    conn, err := net.DialTimeout(network, address, timeout)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">nil</span>, err</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> NewSession(protocol.NewCodec(conn), sendChanSize), <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>跳过客户的部分的实现，探索一下<strong>server.go</strong>,负责Accept一个连接，并且封装好一个session对象返回</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(server *Server)</span> <span class="title">Accept</span><span class="params">()</span> <span class="params">(*Session, error)</span></span> &#123;</span><br><span class="line">    <span class="keyword">var</span> tempDelay time.Duration</span><br><span class="line">    <span class="keyword">for</span> &#123;</span><br><span class="line">        conn, err := server.listener.Accept()</span><br><span class="line">        <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="comment">// 处理Temporary Error应该是参考了goblog里的error-handling-and-go章节</span></span><br><span class="line">            <span class="comment">// For instance, a web crawler might sleep and retry when it encounters a temporary error and give up otherwise.</span></span><br><span class="line">            <span class="keyword">if</span> ne, ok := err.(net.Error); ok &amp;&amp; ne.Temporary() &#123;</span><br><span class="line">                <span class="keyword">if</span> tempDelay == <span class="number">0</span> &#123;</span><br><span class="line">                    tempDelay = <span class="number">5</span> * time.Millisecond</span><br><span class="line">                &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                    tempDelay *= <span class="number">2</span></span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">if</span> max := <span class="number">1</span> * time.Second; tempDelay &gt; max &#123;</span><br><span class="line">                    tempDelay = max</span><br><span class="line">                &#125;</span><br><span class="line">                time.Sleep(tempDelay)</span><br><span class="line">                <span class="keyword">continue</span></span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">// 感觉直接比较字符串有点太粗暴了？ 但应该是没有办法区分的原因</span></span><br><span class="line">            <span class="keyword">if</span> strings.Contains(err.Error(), <span class="string">"use of closed network connection"</span>) &#123;</span><br><span class="line">                <span class="keyword">return</span> <span class="literal">nil</span>, io.EOF</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">nil</span>, err</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> server.manager.NewSession(</span><br><span class="line">            server.protocol.NewCodec(conn),</span><br><span class="line">            server.sendChanSize,</span><br><span class="line">        ), <span class="literal">nil</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><strong>manager.go</strong>用于管理session，会把session根据id mod 32以后，放进对应的map里, 这里使用了lock来保证并发安全, 但golang1.9以后，应该可以用内置的<strong>sync.Map</strong>替代了</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(manager *Manager)</span> <span class="title">NewSession</span><span class="params">(codec Codec, sendChanSize <span class="keyword">int</span>)</span> *<span class="title">Session</span></span> &#123;</span><br><span class="line">    session := newSession(manager, codec, sendChanSize)</span><br><span class="line">    manager.putSession(session)</span><br><span class="line">    <span class="keyword">return</span> session</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(manager *Manager)</span> <span class="title">putSession</span><span class="params">(session *Session)</span></span> &#123;</span><br><span class="line">    smap := &amp;manager.sessionMaps[session.id%sessionMapNum]</span><br><span class="line">    smap.Lock()</span><br><span class="line">    <span class="keyword">defer</span> smap.Unlock()</span><br><span class="line">    smap.sessions[session.id] = session</span><br><span class="line">    manager.disposeWait.Add(<span class="number">1</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<hr>
+<h3 id="Session"><a href="#Session" class="headerlink" title="Session"></a>Session</h3><p>server在Accept之后，返回的是一个session对象,session负责收发数据，并且实现了<strong>优雅退出(gracefully shutdown)</strong></p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Session <span class="keyword">struct</span> &#123;</span><br><span class="line">    id             <span class="keyword">uint64</span></span><br><span class="line">    codec          Codec</span><br><span class="line">    manager        *Manager</span><br><span class="line">    sendChan       <span class="keyword">chan</span> <span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">    closeFlag      <span class="keyword">int32</span></span><br><span class="line">    closeChan      <span class="keyword">chan</span> <span class="keyword">int</span></span><br><span class="line">    closeMutex     sync.Mutex</span><br><span class="line">    closeCallbacks *list.List</span><br><span class="line">    State          <span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>优雅退出的实现，先通过CAS设置一下closeFlag, 成功设置的gorutine可以执行清理操作，失败的gorutine返回SessionClosedError<br><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(session *Session)</span> <span class="title">Close</span><span class="params">()</span> <span class="title">error</span></span> &#123;</span><br><span class="line">    <span class="comment">// 如果成功通过CAS设置了closeFlag</span></span><br><span class="line">    <span class="keyword">if</span> atomic.CompareAndSwapInt32(&amp;session.closeFlag, <span class="number">0</span>, <span class="number">1</span>) &#123;</span><br><span class="line">        err := session.codec.Close() <span class="comment">// 关闭net.Conn</span></span><br><span class="line">        <span class="built_in">close</span>(session.closeChan) <span class="comment">// 退出sendLoop</span></span><br><span class="line">        <span class="keyword">if</span> session.manager != <span class="literal">nil</span> &#123; <span class="comment">// 从manager中移除session</span></span><br><span class="line">            session.manager.delSession(session)</span><br><span class="line">        &#125;</span><br><span class="line">        session.invokeCloseCallbacks() <span class="comment">// 执行callback</span></span><br><span class="line">        <span class="keyword">return</span> err</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> SessionClosedError</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>发送数据部分</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">func (session *Session) sendLoop() &#123;</span><br><span class="line">    defer session.Close()</span><br><span class="line">    for &#123;</span><br><span class="line">        // 使用select语句来保证，关闭closeChan之后可以退出sendLoop</span><br><span class="line">        select &#123;</span><br><span class="line">        case msg := &lt;-session.sendChan:</span><br><span class="line">            if session.codec.Send(msg) != nil &#123;</span><br><span class="line">                return</span><br><span class="line">            &#125;</span><br><span class="line">        case &lt;-session.closeChan:</span><br><span class="line">            return</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func (session *Session) Send(msg interface&#123;&#125;) (err error) &#123;</span><br><span class="line">    // 在每次Send的时候，都会检查closeFlag，实现快速的退出</span><br><span class="line">    if session.IsClosed() &#123;</span><br><span class="line">        return SessionClosedError</span><br><span class="line">    &#125;</span><br><span class="line">    if session.sendChan == nil &#123;</span><br><span class="line">        return session.codec.Send(msg)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    // send block, 返回一个异常, 有点粗暴了</span><br><span class="line">    select &#123;</span><br><span class="line">    case session.sendChan &lt;- msg:</span><br><span class="line">        return nil</span><br><span class="line">    default:</span><br><span class="line">        return SessionBlockedError</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<hr>
+<h3 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h3><p>其实本意是想找找有没有关于心跳和连接保持方面的代码，但没有什么收获.不过也看到了很多高质量的实现，例如<strong>idgen</strong>，粗粗瞟了一眼就发现，应该是使用了雪花算法，此外还有大量微服务的设计，以及一些我很感兴趣的流行开源技术栈(k8s docker etcd hbase kafka)可以看出是一整套经过深思熟虑的系统，决定过年期间要好好看一看这个库，吸收一下营养。</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/golang/">golang</a><a href="/tags/造轮子/">造轮子</a>
+    </span>
+    
+
+    </div>
+
+    
+    <div class="article-meta pull-right">
+      <span>
+        <i class="icon-comments"></i>
+        <span>
+          <a href="/2018/02/05/FishChatServer源码探究/#comment">评论</a>
+        </span>
+      </span>
+    </div>
+    
+  </div>
+</article>
+
+
+
   <article>
 
   
@@ -142,7 +230,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2018/02/05/golang-tcp拆包的正确姿势/#comment">Comments</a>
+          <a href="/2018/02/05/golang-tcp拆包的正确姿势/#comment">评论</a>
         </span>
       </span>
     </div>
@@ -245,7 +333,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2018/01/05/后端的一些经验与心得/#comment">Comments</a>
+          <a href="/2018/01/05/后端的一些经验与心得/#comment">评论</a>
         </span>
       </span>
     </div>
@@ -357,7 +445,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2017/12/13/kafka-introduce翻译/#comment">Comments</a>
+          <a href="/2017/12/13/kafka-introduce翻译/#comment">评论</a>
         </span>
       </span>
     </div>
@@ -442,7 +530,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2017/10/05/使用ELK构建分布式日志分析系统/#comment">Comments</a>
+          <a href="/2017/10/05/使用ELK构建分布式日志分析系统/#comment">评论</a>
         </span>
       </span>
     </div>
@@ -517,7 +605,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2017/09/05/自制简易前端MVC框架/#comment">Comments</a>
+          <a href="/2017/09/05/自制简易前端MVC框架/#comment">评论</a>
         </span>
       </span>
     </div>
@@ -594,7 +682,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2017/06/05/关于Netty的一些理解、实践与陷阱/#comment">Comments</a>
+          <a href="/2017/06/05/关于Netty的一些理解、实践与陷阱/#comment">评论</a>
         </span>
       </span>
     </div>
@@ -724,7 +812,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2017/03/05/一次完整的HTTP请求/#comment">Comments</a>
+          <a href="/2017/03/05/一次完整的HTTP请求/#comment">评论</a>
         </span>
       </span>
     </div>
@@ -912,7 +1000,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2016/12/05/MySQL查询优化/#comment">Comments</a>
+          <a href="/2016/12/05/MySQL查询优化/#comment">评论</a>
         </span>
       </span>
     </div>
@@ -998,100 +1086,7 @@
       <span>
         <i class="icon-comments"></i>
         <span>
-          <a href="/2016/10/05/使用mina自动化部署Rails应用/#comment">Comments</a>
-        </span>
-      </span>
-    </div>
-    
-  </div>
-</article>
-
-
-
-  <article>
-
-  
-    
-    <h3 class="article-title"><a href="/2016/09/09/https理论与实践/"><span>https理论与实践</span></a></h3>
-    
-  
-
-  <div class="article-top-meta">
-    <span class="posted-on">
-      <a href="/2016/09/09/https理论与实践/" rel="bookmark">
-        <time class="entry-date published" datetime="2016-09-09T01:46:06.000Z">
-          2016-09-09
-        </time>
-      </a>
-    </span>
-  </div>
-
-
-  
-
-  <div class="article-content">
-    <div class="entry">
-      
-        <p>说点废话，我一直觉得APPLE是个非常激进的公司， 从早些的Flash，到现在的http，又比如新的Mac连USB口都不给。公司大到这个量级，已经可以凭一己之力促进先进技术的普及了。</p>
-<h4 id="本文内容分为以下三部分"><a href="#本文内容分为以下三部分" class="headerlink" title="本文内容分为以下三部分"></a>本文内容分为以下三部分</h4><ul>
-<li>HTTPS协议</li>
-<li>使用Let’s Encrypt在后端部署https服务</li>
-<li>https在iOS上的正确使用姿势</li>
-</ul>
-<h4 id="Part1-HTTPS协议"><a href="#Part1-HTTPS协议" class="headerlink" title="Part1 HTTPS协议"></a>Part1 HTTPS协议</h4><p>普通的HTTP请求，在通信双方建立了TCP连接之后，就可以进行了。而HTTPS则不同，在建立TCP连接之后，需要先进行SSL协议的握手过程，然后才是HTTP的通信。</p>
-<p>SSL的握手过程如下图所示<br><img src="http://upload-images.jianshu.io/upload_images/4073552-0d43756862bec209.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt=""></p>
-<p>alice想要与bob进行https的通信，需要以下几步</p>
-<ol>
-<li>alice给出协议版本号、一个客户端生成的随机数（Client random），以及客户端支持的加密方法。</li>
-<li>bob确认双方使用的加密方法，并给出数字证书（包含bob的公钥）、以及一个服务器生成的随机数（Server random）。</li>
-<li>alice 确认数字证书（向CA确认）有效，然后生成一个新的随机数（Premaster secret），并使用数字证书中的公钥，加密这个随机数，发给鲍勃。</li>
-<li>bob使用自己的私钥，获取爱丽丝发来的随机数（即Premaster secret）。</li>
-<li>alice和bob根据约定的加密方法，使用前面的三个随机数，生成”对话密钥”（session key），用来加密接下来的整个对话过程。</li>
-</ol>
-<p>上述步骤的最终目的，是为了生成”对话密钥“，以后的通信都使用这个密钥进行对称加密（一般对称加解密的速度是比较快的）</p>
-<p>那么看到这里，就又一个问题出现了。握手阶段的信息安全如何保障？</p>
-<p>答案是无法保障。整个握手阶段，都是明文的。因此如果有第三方窃听了通信，他可以获得Client random、Server random以及加密后的Premaster secret。只要第三方无法破解Premaster secret的内容，那么通信就是安全的。</p>
-<h4 id="Part2-使用Let’s-Encrypt在后端部署https服务"><a href="#Part2-使用Let’s-Encrypt在后端部署https服务" class="headerlink" title="Part2 使用Let’s Encrypt在后端部署https服务"></a>Part2 使用Let’s Encrypt在后端部署https服务</h4><p>可以参考这篇文章</p>
-<p><a href="https://www.digitalocean.com/community/tutorials/how-to-secure-nginx-with-let-s-encrypt-on-ubuntu-16-04" target="_blank" rel="noopener">How To Secure Nginx with Let’s Encrypt on Ubuntu 16.04</a></p>
-<p>大致步骤</p>
-<ol>
-<li>安装certbot客户端</li>
-<li>配置服务器允许方案 /.well-known文件夹</li>
-<li>sudo letsencrypt certonly -a webroot –webroot-path=/var/www/html -d example.com -d www.example.com 这个命令会生成你需要的证书等文件</li>
-<li>配置Nginx ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem;<br>ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;</li>
-</ol>
-<p>如果速度很慢多半是python的源被墙了，需要改一下pip配置。</p>
-<p>Let’s Encrypt大法好，退沃通保平安！</p>
-<h4 id="Part3-在iOS上使用自己颁发的HTTPS证书的正确姿势"><a href="#Part3-在iOS上使用自己颁发的HTTPS证书的正确姿势" class="headerlink" title="Part3 在iOS上使用自己颁发的HTTPS证书的正确姿势"></a>Part3 在iOS上使用自己颁发的HTTPS证书的正确姿势</h4><p>在开发环境，也需要进行HTTPS的话，需要对AFN进行两个设置：允许不合法的证书和不验证域名</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">AFHTTPSessionManager *manager = [[AFHTTPSessionManager alloc] initWithBaseURL:[NSURL URLWithString:[self host]]];</span><br><span class="line"></span><br><span class="line">manager.securityPolicy.allowInvalidCertificates = YES;</span><br><span class="line">manager.securityPolicy.validatesDomainName = NO;</span><br></pre></td></tr></table></figure>
-
-      
-    </div>
-
-  </div>
-
-  <div class="article-footer">
-    <div class="article-meta pull-left">
-
-    
-
-    
-    
-
-    <span class="post-tags">
-      <i class="icon-tags"></i>
-        <a href="/tags/后端/">后端</a>
-    </span>
-    
-
-    </div>
-
-    
-    <div class="article-meta pull-right">
-      <span>
-        <i class="icon-comments"></i>
-        <span>
-          <a href="/2016/09/09/https理论与实践/#comment">Comments</a>
+          <a href="/2016/10/05/使用mina自动化部署Rails应用/#comment">评论</a>
         </span>
       </span>
     </div>
@@ -1104,10 +1099,10 @@
 
 <nav class="pagination">
   
-  <a href="/" class="pagination-prev">Prev</a>
+  <a href="/" class="pagination-prev">上一页</a>
   
   
-  <a href="/page/3/" class="pagination-next">Next</a>
+  <a href="/page/3/" class="pagination-next">下一页</a>
   
 </nav>
     </main>
